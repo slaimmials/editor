@@ -1,0 +1,965 @@
+local floor = math.floor
+local abs = math.abs
+local GetPlayers = player.GetAll
+local IsValid = IsValid
+local LocalPlayer = LocalPlayer
+local ScrW = ScrW
+local ScrH = ScrH
+local Color = Color
+local surface_SetDrawColor = surface.SetDrawColor
+local surface_DrawRect = surface.DrawRect
+local surface_DrawOutlinedRect = surface.DrawOutlinedRect
+local surface_SetTextColor = surface.SetTextColor
+local surface_SetFont = surface.SetFont
+local surface_SetTextPos = surface.SetTextPos
+local surface_DrawText = surface.DrawText
+local Vector = Vector
+
+function math.Lerp(value, fraction, valueTo)
+    local diff = value-valueTo
+    local lerpValue = diff*fraction
+    if diff < 0 then 
+        value = value + lerpValue
+    elseif diff > 0 then
+        value = value - lerpValue
+    end
+    return value
+end
+
+local function distanceSqr(x1, y1, x2, y2)
+    local dx = x1 - x2
+    local dy = y1 - y2
+    return dx*dx + dy*dy
+end
+
+local LibUI = {
+	Frames = {},
+	CurrentFrame = nil,
+	ElementMargin = 1,
+}
+surface.CreateFont("ESP_SemiBig", {
+	font = "Arial",
+	size = 16,
+	weight = 5000,
+	antialias = true,
+})
+surface.CreateFont("ESP_Medium", {
+	font = "Arial",
+	size = 10,
+	weight = 5000,
+	antialias = true,
+})
+surface.CreateFont("ESP_Small", {
+	font = "Arial",
+	size = 8,
+	weight = 5000,
+	antialias = true,
+})
+surface.CreateFont("ESP_Big", {
+	font = "Arial",
+	size = 20,
+	weight = 5000,
+	antialias = true,
+})
+local lastFrameX = 10
+function LibUI:NewFrame(name, title)
+    title = title or name
+	local frame = {
+		Name = name,
+		VGUI = {
+			Frame = vgui.Create("DFrame"),
+			Elements = {},
+			YOffset = 30,
+			AutoPosition = { x = 5, y = 30 },
+		},
+	}
+
+	frame.VGUI.Frame:SetTitle("")
+    frame.VGUI.Frame:ShowCloseButton(false)
+	frame.VGUI.Frame:SetDraggable(true)
+	frame.VGUI.Frame:SetSize(150, 0)
+	frame.VGUI.Frame:Center()
+	frame.VGUI.Frame:SetVisible(false)
+    frame.VGUI.Frame:SetPos(lastFrameX, 10)
+    --if popup then
+        frame.VGUI.Frame:MakePopup()
+    --end
+    local sizeX, sizeY = frame.VGUI.Frame:GetSize()
+    lastFrameX = lastFrameX+sizeX+10
+    function frame.VGUI.Frame:Paint(w, h)
+        surface_SetDrawColor(60,60,60,255)
+        surface_DrawRect(0,0,w,h)
+        surface_SetDrawColor(96, 180, 100, 255)
+        surface_DrawRect(0,0,w,25)
+        surface_SetTextColor(255,255,255,255)
+        draw.SimpleText(title, "ESP_Big", 150/2, 25/2, Color(255, 255, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+    end
+
+	function frame.VGUI:AddElement(element, height)
+		element:SetPos(self.AutoPosition.x, self.AutoPosition.y)
+		element:SetWidth(self.Frame:GetWide() - 10)
+		if height then
+			element:SetHeight(height)
+		end
+		self.AutoPosition.y = self.AutoPosition.y + (height or 20) + LibUI.ElementMargin
+
+		if self.AutoPosition.y + 30 > self.Frame:GetTall() then
+			self.Frame:SetTall(self.AutoPosition.y + 30)
+            frame.VGUI.Frame:SetSize(sizeX, self.AutoPosition.y)
+		end
+	end
+
+	self.CurrentFrame = frame
+	self.Frames[name] = frame
+	return frame
+end
+
+function LibUI:ShowFrame(name)
+	if self.Frames[name] and self.Frames[name].VGUI.Frame then
+		self.Frames[name].VGUI.Frame:SetVisible(true)
+		self.Frames[name].VGUI.Frame:MoveToFront()
+	end
+end
+
+function LibUI:HideFrame(name)
+	if self.Frames[name] and self.Frames[name].VGUI.Frame then
+        print("hiding: "..name)
+		self.Frames[name].VGUI.Frame:SetVisible(false)
+	end
+end
+
+function LibUI:Button(text, onClick)
+	if not self.CurrentFrame then
+		return
+	end
+	local btn = vgui.Create("DButton", self.CurrentFrame.VGUI.Frame)
+	btn:SetText("")
+    local BGColor = Color(40,40,40)
+    function btn:Paint(w,h)
+        BGColor = BGColor:Lerp(Color(40,40,40), 0.05)
+        surface.SetDrawColor(BGColor.r, BGColor.g, BGColor.b)
+        surface.DrawRect(0,0,w,h)
+        draw.SimpleText(text, "ESP_SemiBig", w/2, h/2, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+    end
+	btn.DoClick = function()
+        BGColor = Color(96,180,100)
+        onClick()
+    end
+	self.CurrentFrame.VGUI:AddElement(btn, 25)
+	return btn
+end
+
+function LibUI:Label(text)
+	if not self.CurrentFrame then
+		return
+	end
+	local lbl = vgui.Create("DLabel", self.CurrentFrame.VGUI.Frame)
+    lbl:SetFont("ESP_SemiBig")
+	lbl:SetText(text)
+	lbl:SetTextColor(Color(255, 255, 255))
+	lbl:SizeToContents()
+	self.CurrentFrame.VGUI:AddElement(lbl)
+	return lbl
+end
+
+function LibUI:CheckBox(text, onChange)
+	if not self.CurrentFrame then
+		return
+	end
+	local panel = vgui.Create("DPanel", self.CurrentFrame.VGUI.Frame)
+	panel:SetBackgroundColor(Color(0, 0, 0, 0))
+
+	local chk = vgui.Create("DCheckBox", panel)
+	chk:SetPos(0, 2)
+    --[[function chk:Paint(w,h)
+        surface_SetDrawColor(255,255,255)
+        surface_DrawRect(0,0,w,h)
+    end]]
+	local lbl = vgui.Create("DLabel", panel)
+	lbl:SetText(text)
+    lbl:SetFont("ESP_SemiBig")
+	lbl:SetPos(20, 0)
+	lbl:SizeToContents()
+
+	panel:SetSize(100, 20)
+	if onChange then
+		chk.OnChange = function(_, val)
+			onChange(val)
+		end
+	end
+
+	self.CurrentFrame.VGUI:AddElement(panel, 20)
+	return chk
+end
+
+function LibUI:Slider(text, min, max, defaultValue, onChange)
+    if not self.CurrentFrame then
+        return
+    end
+    
+    local panel = vgui.Create("DPanel", self.CurrentFrame.VGUI.Frame)
+    panel:SetBackgroundColor(Color(0, 0, 0, 0))
+    panel:SetTall(40)
+
+    local lbl = vgui.Create("DLabel", panel)
+    lbl:SetFont("ESP_SemiBig")
+    lbl:SetText(text)
+    lbl:SizeToContents()
+    lbl:SetPos(0, 0)
+
+    local sliderPanel = vgui.Create("DPanel", panel)
+    sliderPanel:SetSize(140, 20)
+    sliderPanel:SetPos(0, 20)
+    sliderPanel.Paint = function(self, w, h)
+        draw.RoundedBox(0, 0, 0, w, h, Color(40, 40, 40))
+        draw.RoundedBox(0, 3, 3, w - 6, h - 6, Color(60,60,60))
+
+        local fillWidth = (w - 6) * math.Clamp((self.Value - min) / (max - min), 0, 1)
+        draw.RoundedBox(0, 3, 3, fillWidth, h - 6, Color(96, 180, 100))
+        draw.SimpleText(tostring(math.Round(self.Value or defaultValue, 1)), "ESP_SemiBig", fillWidth + 5, h/2, Color(255, 255, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+    end
+
+    local slider = vgui.Create("DNumSlider", sliderPanel)
+    slider:SetPos(0, 0)
+    slider:SetSize(140, 20)
+    slider:SetMin(min)
+    slider:SetMax(max)
+    slider:SetValue(defaultValue)
+    slider:SetText("")
+    slider:SetDark(true)
+    slider.Slider:SetNotches(0)
+
+    slider.Scratch:SetVisible(false)
+    slider.Label:SetVisible(false)
+    slider.TextArea:SetVisible(false)
+    slider.Slider.Knob:SetVisible(false)
+
+    function slider.Slider:Paint()
+    end
+
+    slider.OnValueChanged = function(_, val)
+        sliderPanel.Value = val
+        sliderPanel:InvalidateLayout()
+        
+        if onChange then
+            onChange(val)
+        end
+    end
+    
+    sliderPanel.Value = defaultValue
+
+    self.CurrentFrame.VGUI:AddElement(panel, 43)
+    return slider
+end
+
+function LibUI:DropDown(text, options, defaultValue, onChange)
+    if not self.CurrentFrame then return end
+    
+    local panel = vgui.Create("DPanel", self.CurrentFrame.VGUI.Frame)
+    panel:SetBackgroundColor(Color(0,0,0,0))
+    
+    local lbl = vgui.Create("DLabel", panel)
+    lbl:SetFont("ESP_SemiBig")
+    lbl:SetText(text)
+    lbl:SetTextColor(Color(255,255,255))
+    lbl:SizeToContents()
+    lbl:SetPos(0, 0)
+    
+    local combo = vgui.Create("DComboBox", panel)
+    combo:SetPos(0, 20)
+    combo:SetSize(190, 20)
+    
+    for key, value in pairs(options) do
+        if type(options) == "table" and #options > 0 then
+            combo:AddChoice(value)
+        else
+            combo:AddChoice(value, key)
+        end
+    end
+    
+    if defaultValue then
+        combo:SetValue(defaultValue)
+    end
+    
+    if onChange then
+        combo.OnSelect = function(_, index, value, data)
+            onChange(data or value)
+        end
+    end
+    
+    self.CurrentFrame.VGUI:AddElement(panel, 45)
+    return combo
+end
+
+function LibUI:MultiDropDown(text, options, defaultSelected, onChange)
+    if not self.CurrentFrame then return end
+    
+    local panel = vgui.Create("DPanel", self.CurrentFrame.VGUI.Frame)
+    panel:SetBackgroundColor(Color(0,0,0,0))
+    panel:SetZPos(32767)
+    
+    local lbl = vgui.Create("DLabel", panel)
+    lbl:SetFont("ESP_SemiBig")
+    lbl:SetText(text)
+    lbl:SetTextColor(Color(255,255,255))
+    lbl:SizeToContents()
+    lbl:SetPos(0, 0)
+    local bText = "Выбрать..."
+    local dropButton = vgui.Create("DButton", panel)
+    dropButton:SetText("")
+    dropButton:SetPos(0, 20)
+    dropButton:SetSize(140, 20)
+    local BGColor = Color(40,40,40)
+    function dropButton:Paint(w,h)
+        BGColor = BGColor:Lerp(Color(40,40,40), 0.05)
+        surface.SetDrawColor(BGColor.r, BGColor.g, BGColor.b)
+        surface.DrawRect(0,0,w,h)
+        draw.SimpleText(bText, "ESP_SemiBig", w/2, h/2, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+    end
+        
+    local selectedOptions = {}
+    
+    for key in pairs(options) do
+        selectedOptions[key] = false
+    end
+    
+    if defaultSelected then
+        if type(defaultSelected) == "table" then
+            for _, key in ipairs(defaultSelected) do
+                if selectedOptions[key] ~= nil then
+                    selectedOptions[key] = true
+                end
+            end
+        elseif selectedOptions[tostring(defaultSelected)] ~= nil then
+            selectedOptions[tostring(defaultSelected)] = true
+        end
+    end
+    
+    local menuPanel
+    local function UpdateButtonText()
+        local count = 0
+        for _, state in pairs(selectedOptions) do
+            if state then count = count + 1 end
+        end
+        bText = count > 0 and ("Выбрано: "..count) or "Выбрать..."
+    end
+    
+    dropButton.DoClick = function()
+        BGColor = Color(96,180,100)
+        if IsValid(menuPanel) then 
+            menuPanel:Remove()
+            return 
+        end
+        
+        menuPanel = vgui.Create("DFrame")
+        menuPanel:SetSize(150, 150)
+        menuPanel:SetPos(dropButton:LocalToScreen(0, dropButton:GetTall()))
+        menuPanel:SetTitle("")
+        menuPanel:ShowCloseButton(false)
+        menuPanel:SetDraggable(false)
+        menuPanel:MakePopup()
+        menuPanel:SetZPos(32767)
+        
+        local lbl = vgui.Create("DLabel", menuPanel)
+        lbl:SetFont("ESP_SemiBig")
+        lbl:SetText("Select options:")
+        lbl:SetPos(5, 5)
+        lbl:SizeToContents()
+
+        function menuPanel:Paint(w, h)
+            draw.RoundedBox(4, 0, 0, w, h, Color(40, 40, 40, 240))
+        end
+        
+        local scroll = vgui.Create("DScrollPanel", menuPanel)
+        scroll:Dock(FILL)
+        
+        local list = vgui.Create("DListLayout", scroll)
+        list:Dock(FILL)
+        
+        for key, value in pairs(options) do
+            local itemPanel = vgui.Create("DPanel", list)
+            itemPanel:SetTall(25)
+            itemPanel:SetBackgroundColor(Color(0,0,0,0))
+            
+            local cb = vgui.Create("DCheckBox", itemPanel)
+            cb:SetPos(5, 5)
+            cb:SetChecked(selectedOptions[key])
+            
+            local lbl = vgui.Create("DLabel", itemPanel)
+            lbl:SetFont("ESP_SemiBig")
+            lbl:SetText(value)
+            lbl:SetPos(30, 5)
+            lbl:SizeToContents()
+            
+            cb.OnChange = function(_, val)
+                selectedOptions[key] = val
+                UpdateButtonText()
+                
+                if onChange then
+                    onChange(selectedOptions)
+                end
+            end
+        end
+        
+        menuPanel.OnFocusChanged = function(_, gained)
+            if not gained and not menuPanel:IsHovered() then
+                menuPanel:Remove()
+            end
+        end
+        
+        function menuPanel:Think()
+            if not self:HasFocus() and not self:IsHovered() and not dropButton:IsHovered() then
+                self:Remove()
+            end
+        end
+    end
+    
+    UpdateButtonText()
+    
+    self.CurrentFrame.VGUI:AddElement(panel, 45)
+
+    return {
+        GetSelected = function()
+            return table.Copy(selectedOptions)
+        end,
+        
+        SetSelected = function(self, newSelected)
+            for key in pairs(selectedOptions) do
+                if newSelected[key] ~= nil then
+                    selectedOptions[key] = newSelected[key]
+                end
+            end
+            UpdateButtonText()
+        end,
+        
+        SetOptionState = function(self, key, state)
+            if selectedOptions[key] ~= nil then
+                selectedOptions[key] = state
+                UpdateButtonText()
+            end
+        end,
+        
+        AddOption = function(self, key, value, defaultState)
+            options[key] = value
+            selectedOptions[key] = defaultState or false
+            UpdateButtonText()
+        end,
+        
+        RemoveOption = function(self, key)
+            options[key] = nil
+            selectedOptions[key] = nil
+            UpdateButtonText()
+        end,
+        
+        Panel = panel
+    }
+end
+----------MAIN CODE-----------
+
+local Aimbot = {
+	Enabled = false,
+	FOV = 6,
+	Target = nil,
+	Smoothness = 0,
+	Silent = false,
+	PredictTypes = {},
+	TeamCheck = false,
+    Angle = Angle(0,0,0),
+    VRecoil = false,
+    SilentAngles = Angle(0,0,0),
+
+}
+
+local Visuals = {
+	Wallhack = false,
+	Box = false,
+	Health = false,
+	Nametags = false,
+    NametagArea = ScrH()/6,
+    Ammo = false,
+	Dormant = false,
+}
+
+local BHopSettings = {
+    Enabled = false,
+    AutoStrafe = false,
+    StrafeSpeed = 400,
+    LastJumpTime = 0,
+    State = false,
+    LastYaw = 0
+}
+
+local Misc = {
+    Thirdperson = {
+        Enabled = false,
+        Distance = 100,
+    },
+    Observer = {
+        Enabled = false,
+        Target = nil,
+        Mode = 1,
+        Distance = 100,
+        Angle = Angle(0, 0, 0)
+    },
+    Taunts = false,
+}
+--------UI STRUCTING----------
+
+LibUI:NewFrame("Aimbot")
+--LibUI:Label("Aimbot")
+LibUI:CheckBox("Enable", function(val)Aimbot.Enabled = val end)
+LibUI:CheckBox("Silent", function(val)Aimbot.Silent = val end)
+LibUI:CheckBox("Team check", function(val)Aimbot.TeamCheck = val end)
+LibUI:MultiDropDown("Predict", {
+    ["Velocity"] = "Velocity",
+    ["Ping"] = "Ping",
+	["Ballistics"] = "Ballistics",
+}, {}, function(selected)
+    Aimbot.PredictTypes = selected
+end)
+LibUI:Slider("FOV", 1, 180, Aimbot.FOV, function(val)Aimbot.FOV = val end)
+LibUI:Slider("Smoothness", 0, 1, Aimbot.Smoothness, function(val)Aimbot.Smoothness = val end)
+LibUI:CheckBox("No vrecoil", function(val)Aimbot.VRecoil = val end)
+----
+LibUI:NewFrame("Visuals")
+LibUI:CheckBox("Wallhack", function(val)Visuals.Wallhack = val end)
+LibUI:CheckBox("Dormant", function(val)Visuals.Dormant = val end)
+LibUI:CheckBox("Box", function(val)Visuals.Box = val end)
+LibUI:CheckBox("Health", function(val) Visuals.Health = val end)
+LibUI:CheckBox("Nametags", function(val) Visuals.Nametags = val end)
+LibUI:Slider("Nametag area", 0, ScrW(), ScrH()/6, function(val) Visuals.NametagArea = val end)
+LibUI:CheckBox("Ammo", function(val) Visuals.Ammo = val end)
+----
+LibUI:NewFrame("Miscellaneous") 
+LibUI:Button("Hide menu", function()
+    LibUI:HideFrame("Aimbot")
+    LibUI:HideFrame("Visuals")
+    LibUI:HideFrame("Miscellaneous")
+end)
+LibUI:CheckBox("Enable BHop", function(val) BHopSettings.Enabled = val end)
+LibUI:CheckBox("Autostrafe", function(val) BHopSettings.AutoStrafe = val end)
+LibUI:CheckBox("Thirdperson", function(val) Misc.Thirdperson.Enabled = val end)
+LibUI:Slider("Distance", 0, 250, Misc.Thirdperson.Distance, function(val) Misc.Thirdperson.Distance = val end)
+LibUI:CheckBox("Disable taunts", function(val) Misc.Taunts = val end)
+LibUI:CheckBox("Observer", function(val) Misc.Observer.Enabled = val end)
+LibUI:DropDown("Target", {
+    "Pisun",
+    "Sasun"
+}, 1, function(val)
+    
+end)
+
+--LibUI:ShowFrame("Aimbot")
+--LibUI:ShowFrame("Visuals")
+--LibUI:ShowFrame("Miscellaneous")
+
+----------FUNCTIONS-----------
+
+function distance(x1, y1, x2, y2)
+	local dx = x1 - x2
+	local dy = y1 - y2
+	return math.sqrt(dx * dx + dy * dy)
+end
+
+function rand_str(len)
+	len = tonumber(len) or 1
+
+	local function rand_char()
+		return math.random() > 0.5 and string.char(math.random(65, 90)) or string.char(math.random(97, 122))
+	end
+	local function rand_num()
+		return string.char(math.random(48, 57))
+	end
+
+	local str = ""
+	for i = 1, len do
+		str = str .. (math.random() > 0.5 and rand_char() or rand_num())
+	end
+	return str
+end
+
+function GetLoadedAmmo(ply)
+    if not IsValid(ply) then return -1 end
+    
+    local wep = ply:GetActiveWeapon()
+    if not IsValid(wep) then return -1 end
+    
+    return wep:Clip1() or 0
+end
+
+function IsReloading(ply)
+    local wep = ply:GetActiveWeapon()
+    if not IsValid(wep) then return false end
+    
+    local act = wep:GetActivity()
+    return act == ACT_VM_RELOAD or 
+           act == ACT_VM_RELOAD_EMPTY or
+           act == ACT_VM_RELOAD_SILENCED
+end
+
+local timeout = 0
+hook.Add("Think", "BM_Clients_Key", function()
+	if (timeout or 0) < CurTime() and input.IsKeyDown(KEY_DELETE) then
+		timeout = CurTime() + 0.3
+		if LibUI.CurrentFrame.VGUI.Frame:IsVisible() then
+			LibUI:HideFrame("Aimbot")
+            LibUI:HideFrame("Visuals")
+            LibUI:HideFrame("Miscellaneous")
+		else
+			LibUI:ShowFrame("Aimbot")
+            LibUI:ShowFrame("Visuals")
+            LibUI:ShowFrame("Miscellaneous")
+		end
+	end
+end)
+
+hook.Add("CreateMove", "Aimbot", function(cmd)
+    if not Aimbot.Enabled or not input.IsMouseDown(MOUSE_RIGHT) then Aimbot.Angle = Angle(0,0,0)  return end
+
+    local localPlayer = LocalPlayer()
+    local cameraPos = localPlayer:GetShootPos()
+    local cameraAng = localPlayer:GetAimVector():Angle()
+    local cameraForward = cameraAng:Forward()
+    
+    local bestDelta = Aimbot.FOV
+    local bestTarget = nil
+
+    for _, ply in ipairs(player.GetAll()) do
+        if ply == localPlayer then continue end
+        if not ply:Alive() then continue end
+        if ply:Team() == localPlayer:Team() and Aimbot.TeamCheck then continue end
+        if ply:IsDormant() then continue end
+
+        local targetPos = ply:GetShootPos()
+        local direction = (targetPos - cameraPos):GetNormalized()
+        local angleDelta = math.deg(math.acos(cameraForward:Dot(direction)))
+        
+        if angleDelta < bestDelta then
+            bestDelta = angleDelta
+            bestTarget = ply
+        end
+    end
+
+	Aimbot.Target = bestTarget
+
+	if IsValid(Aimbot.Target) and not Aimbot.Target:IsDormant() then
+		local targetPos = Aimbot.Target:GetBonePosition(Aimbot.Target:LookupBone("ValveBiped.Bip01_Head1")) 
+			or Aimbot.Target:EyePos()
+		if targetPos then
+			targetPos = targetPos + Vector(0, 0, 1)
+		end
+
+		local ping = LocalPlayer():Ping() / 1000
+		local predictionTime = 1
+
+		if Aimbot.PredictTypes.Ping then
+			predictionTime = predictionTime + (ping * 0.5)
+		end
+
+		local weapon = LocalPlayer():GetActiveWeapon()
+		if IsValid(weapon) and Aimbot.PredictTypes.Ballistics then
+			local bulletSpeed = weapon.Primary and weapon.Primary.ProjectileVelocity or 10000
+			if bulletSpeed > 0 then
+				local cameraPos = LocalPlayer():EyePos()
+				local distance = targetPos:Distance(cameraPos)
+				predictionTime = predictionTime + (distance / bulletSpeed)
+			end
+		end
+
+		local velocity = Vector(0, 0, 0)
+		if Aimbot.PredictTypes.Velocity and predictionTime > 0 then
+			velocity = Aimbot.Target:GetVelocity()/10 * predictionTime
+		end
+
+		targetPos = targetPos + velocity
+		
+		local targetAng = (targetPos - cameraPos):Angle()
+        local newAng = targetAng
+        if Aimbot.Smoothness > 0 then
+            newAng = LerpAngle((1 - Aimbot.Smoothness) * FrameTime() * 50, cameraAng, targetAng)
+        end
+        if Aimbot.Silent then
+            Aimbot.Angle = Aimbot.Angle + newAng - LocalPlayer():EyeAngles()
+
+        else
+            Aimbot.Angle = Angle(0,0,0)
+        end
+		cmd:SetViewAngles(Angle(
+			math.NormalizeAngle(newAng.p),
+			math.NormalizeAngle(newAng.y),
+			0
+		))
+	end
+end)
+
+local hudDrawingFake = {
+	fakeRT = GetRenderTarget("fakeRT" .. os.time(), ScrW(), ScrH()),
+	ENames = {
+		Wallhack = rand_str(7),
+	},
+}
+
+function DrawText(text, x, y, r, g, b, a)
+	surface.SetFont("ESP_Medium")
+	surface.SetTextColor(0, 0, 0, 255)
+	surface.SetTextPos(x, y - 2)
+	surface.DrawText(text)
+
+	surface.SetTextColor(r or 255, g or 255, b or 255, a or 255)
+	surface.SetFont("ESP_Small")
+	surface.SetTextPos(x, y - 1)
+	surface.DrawText(text)
+end
+local a = 0
+hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
+	--surface.DrawText(tostring(a)) --debug text output
+
+	surface.SetTextPos(ScrW()/2,ScrH()/2)
+    local localPlayer = LocalPlayer()
+    local scrW, scrH = ScrW(), ScrH()
+    local scrCenterX, scrCenterY = scrW/2, scrH/2
+    
+    if Aimbot.Enabled and Aimbot.FOV > 0 then
+        local degree = scrW / localPlayer:GetFOV()
+        surface_SetDrawColor(255, 255, 255, 255)
+        surface.DrawCircle(scrCenterX, scrCenterY, (degree * Aimbot.FOV)/2, 255, 255, 255, 255)
+    end
+
+    if not Visuals.Wallhack then return end
+    
+    local players = GetPlayers()
+    local showDormant = Visuals.Dormant
+    
+    for i = 1, #players do
+        local ply = players[i]
+        if not IsValid(ply) or ply == localPlayer or not ply:Alive() then continue end
+        
+        local isDormant = ply:IsDormant()
+        if not showDormant and isDormant then continue end
+        
+        local pos = ply:GetPos()
+        local headBone = ply:LookupBone("ValveBiped.Bip01_Head1")
+        local headPos = headBone and (ply:GetBonePosition(headBone) + Vector(0, 0, 10)) or (pos + Vector(0, 0, 70))
+        local bodyPos = pos + Vector(0, 0, 50)
+        local feetPos = pos
+        
+        local headScreen = headPos:ToScreen()
+        local bodyScreen = bodyPos:ToScreen()
+        local feetScreen = feetPos:ToScreen()
+        
+        if not headScreen.visible and not feetScreen.visible then continue end
+        
+        local height = abs(headScreen.y - feetScreen.y)
+        local width = height / 2
+        local boxX = headScreen.x - width / 2
+        local boxY = headScreen.y
+        
+        if Visuals.Box then
+            local boxColor = isDormant and Color(90, 90, 90) or Color(0, 0, 255)
+            local outlineColor = isDormant and Color(39, 39, 39) or Color(0, 0, 100)
+            
+            surface_SetDrawColor(boxColor)
+            surface_DrawOutlinedRect(boxX, boxY, width, height)
+            
+            surface_SetDrawColor(outlineColor)
+            surface_DrawOutlinedRect(boxX - 1, boxY - 1, width + 2, height + 2)
+            surface_DrawOutlinedRect(boxX + 1, boxY + 1, width - 2, height - 2)
+        end
+        
+        local health = ply:Health()
+        local maxHealth = ply:GetMaxHealth()
+        local healthPercentage = health / maxHealth
+        
+        if Visuals.Health then
+            local healthX = boxX
+            local healthY = boxY + height + 2
+            local healthWidth = width * math.Clamp(healthPercentage, 0, 100)
+            
+            local healthColor = isDormant and 
+                Color(100 * healthPercentage, 100 * healthPercentage, 100 * healthPercentage) or 
+                Color(255 - 255 * healthPercentage, 255 * healthPercentage, 0)
+            if healthPercentage > 100 then
+                healthColor = Color(190,0,255)
+            end
+            surface_SetDrawColor(healthColor)
+            surface_DrawRect(healthX, healthY, healthWidth, 3)
+            
+            local healthText = floor(healthPercentage * 100) .. "%"
+            surface_SetTextColor(255, 255, 255, 255)
+            surface_SetFont("ESP_Small")
+            surface_SetTextPos(healthX + healthWidth + 2, healthY - 4)
+            surface_DrawText(healthText)
+        end
+        
+        if Visuals.Nametags then
+            local nameX = boxX
+            local nameY = boxY - 20
+            
+            local drawName = true
+            if Visuals.NametagArea then
+                local distSqr = distanceSqr(nameX, nameY, scrCenterX, scrCenterY)
+                drawName = distSqr <= (Visuals.NametagArea * Visuals.NametagArea)
+            end
+            
+            if drawName then
+                surface_SetTextColor(255, 255, 255, 255)
+                surface_SetFont("ESP_Big")
+                surface_SetTextPos(nameX, nameY)
+                surface_DrawText(ply:GetName())
+            end
+        end
+        
+        if Visuals.Ammo then
+            local ammoX = boxX + width + 2
+            local ammoY = boxY - 2
+            
+            local ammoText = "0"
+            if IsReloading(ply) then
+                ammoText = "R"
+            else
+                local ammoCount = GetLoadedAmmo(ply)
+                if ammoCount > 0 then
+                    ammoText = tostring(ammoCount)
+                end
+            end
+            
+            local ammoColor = isDormant and Color(90, 90, 90) or Color(100, 100, 255)
+            surface_SetTextColor(ammoColor)
+            surface_SetFont("ESP_Big")
+            surface_SetTextPos(ammoX, ammoY)
+            surface_DrawText(ammoText)
+        end
+    end
+end)
+
+hook.Add("RenderScene", "AntiScreenGrab", function(vOrigin, vAngle, vFOV)
+	local view = {
+		x = 0,
+		y = 0,
+		w = ScrW(),
+		h = ScrH(),
+		dopostprocess = true,
+		origin = vOrigin,
+		angles = vAngle,
+		fov = vFOV,
+		drawhud = true,
+		drawmonitors = true,
+		drawviewmodel = true,
+	}
+
+	render.RenderView(view)
+	--render.CopyTexture( nil, fakeRT )
+
+	cam.Start2D()
+	for _, rName in pairs(hudDrawingFake.ENames) do
+		hook.Run(rName .. "HUDPaint")
+	end
+	cam.End2D()
+
+	render.SetRenderTarget(fakeRT)
+
+	return true
+end)
+
+hook.Add("ShutDown", "RemoveAntiScreenGrab", function()
+	render.SetRenderTarget()
+end)
+
+--------BHOP---------
+hook.Add("CreateMove", "BHopHandler", function(cmd)
+    if not BHopSettings.Enabled then return end
+    
+    local ply = LocalPlayer()
+    if not IsValid(ply) then return end
+    
+    local buttons = cmd:GetButtons()
+    local current_time = CurTime()
+    local current_angles = cmd:GetViewAngles()
+    
+    local want_jump = bit.band(buttons, IN_JUMP) ~= 0
+    local on_ground = ply:OnGround()
+    
+    if want_jump then
+        if on_ground then
+            buttons = bit.bor(buttons, IN_JUMP)
+            BHopSettings.LastJumpTime = current_time
+            BHopSettings.State = true
+        else
+            buttons = bit.band(buttons, bit.bnot(IN_JUMP))
+        end
+    end
+    
+    if not on_ground and BHopSettings.AutoStrafe then
+        local yaw_delta = math.AngleDifference(current_angles.y, BHopSettings.LastYaw)
+        if yaw_delta > 0.1 then
+            cmd:SetSideMove(-BHopSettings.StrafeSpeed)
+        elseif yaw_delta < -0.1 then
+            cmd:SetSideMove(BHopSettings.StrafeSpeed)
+        else
+            cmd:SetSideMove(0)
+        end
+    end
+    
+    BHopSettings.LastYaw = current_angles.y
+    
+    cmd:SetButtons(buttons)
+end)
+
+local RealAngles = Angle(0,0,0)
+
+--------Thirdperson---------
+hook.Add("CalcView", "ViewanglesFix", function(ply, pos, angles, fov)
+    local drawviewer = false
+    if Misc.Thirdperson.Enabled then
+        pos = pos - ( angles:Forward() * Misc.Thirdperson.Distance )
+        drawviewer = true
+    end
+    RealAngles = angles - Aimbot.Angle
+    if not Aimbot.Silent or not Aimbot.Angle then
+        Aimbot.Angle = Angle(0,0,0)
+    end
+    if Aimbot.VRecoil then
+        angles = angles - LocalPlayer():GetViewPunchAngles()
+    end
+    Aimbot.SilentAngles = angles
+    local view = {
+        origin = pos,
+        angles = angles - Aimbot.Angle,
+        fov = fov,
+        drawviewer = drawviewer,
+    }
+    return view
+end)
+----------Fix movement----------
+hook.Add("CreateMove", "Fix movement", function(cmd)
+    if Aimbot.Silent and Aimbot.Angle then
+        local angs = cmd:GetViewAngles()
+        local faa = Aimbot.SilentAngles
+
+        local viewang = Angle(0, angs.y, 0)
+        local fix = Vector(cmd:GetForwardMove(), cmd:GetSideMove(), 0)
+        fix = (fix:Angle() + faa):Forward() * fix:Length()
+        
+        if angs.p > 90 or angs.p < -90 then
+            fix.x = -fix.x
+        end
+        
+        cmd:SetForwardMove(fix.x)
+        cmd:SetSideMove(fix.y)
+    end
+end)
+
+hook.Add("PrePlayerDraw", "preplayerdraw", function(ply)
+    if Misc.Taunts then
+        ply.ChatGestureWeight = 0
+        for i = 0, 13 do
+            if ply:IsValidLayer(i) then
+                local seqname = ply:GetSequenceName(ply:GetLayerSequence(i))
+                if seqname:StartWith("taunt_") or seqname:StartWith("act_") or seqname:StartWith("gesture_") then
+                    ply:SetLayerDuration(i, 0.001)
+                    break
+                end
+            end
+        end
+    end
+end)
