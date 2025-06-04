@@ -284,7 +284,7 @@ hook.Add("DrawOverlay", "DrawNotifications", function()
         local width = 300
         local height = 30
 		local x = 20 + width
-        local y = startY + notif.yOffset
+        local y = ScrH() - height - 20 - notif.yOffset
         surface.SetDrawColor(30, 30, 40, animAlpha * 0.9)
         surface.DrawRect(x - width, y, width, height)
         surface.SetDrawColor(notif.color.r, notif.color.g, notif.color.b, animAlpha)
