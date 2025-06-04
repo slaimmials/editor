@@ -55,6 +55,13 @@ surface.CreateFont("ESP_Small", {
 	weight = 5000,
 	antialias = true,
 })
+surface.CreateFont("ESP_SmallS", {
+	font = "Arial",
+	size = 8,
+	weight = 5000,
+	antialias = true,
+    shadow = true
+})
 surface.CreateFont("ESP_Big", {
 	font = "Arial",
 	size = 20,
@@ -466,8 +473,6 @@ local Aimbot = {
 	TeamCheck = false,
     Angle = Angle(0,0,0),
     VRecoil = false,
-    SilentAngles = Angle(0,0,0),
-
 }
 
 local Visuals = {
@@ -499,17 +504,22 @@ local Misc = {
         Target = nil,
         Mode = 1,
         Distance = 100,
-        Angle = Angle(0, 0, 0)
+        CameraAngle = Angle(0, 0, 0),
+        OriginalViewAngles = Angle(0, 0, 0),
+        MouseSensitivity = 1,
+        Plrs = {}
     },
     Taunts = false,
 }
 --------UI STRUCTING----------
 
-LibUI:NewFrame("Aimbot")
+LibUI:NewFrame("AIMBOT")
 --LibUI:Label("Aimbot")
 LibUI:CheckBox("Enable", function(val)Aimbot.Enabled = val end)
-LibUI:CheckBox("Silent", function(val)Aimbot.Silent = val end)
+LibUI:CheckBox("Auto penetration", function(val)Aimbot.AutoPenetration = val end) --TODO
 LibUI:CheckBox("Team check", function(val)Aimbot.TeamCheck = val end)
+LibUI:CheckBox("Auto fire", function(val)Aimbot.AutoFire = val end) --TODO
+LibUI:CheckBox("Silent", function(val)Aimbot.Silent = val end)
 LibUI:MultiDropDown("Predict", {
     ["Velocity"] = "Velocity",
     ["Ping"] = "Ping",
@@ -521,16 +531,19 @@ LibUI:Slider("FOV", 1, 180, Aimbot.FOV, function(val)Aimbot.FOV = val end)
 LibUI:Slider("Smoothness", 0, 1, Aimbot.Smoothness, function(val)Aimbot.Smoothness = val end)
 LibUI:CheckBox("No vrecoil", function(val)Aimbot.VRecoil = val end)
 ----
-LibUI:NewFrame("Visuals")
+LibUI:NewFrame("VISUALS")
 LibUI:CheckBox("Wallhack", function(val)Visuals.Wallhack = val end)
-LibUI:CheckBox("Dormant", function(val)Visuals.Dormant = val end)
-LibUI:CheckBox("Box", function(val)Visuals.Box = val end)
-LibUI:CheckBox("Health", function(val) Visuals.Health = val end)
 LibUI:CheckBox("Nametags", function(val) Visuals.Nametags = val end)
-LibUI:Slider("Nametag area", 0, ScrW(), ScrH()/6, function(val) Visuals.NametagArea = val end)
+LibUI:CheckBox("Dormant", function(val)Visuals.Dormant = val end)
+LibUI:CheckBox("Weapon", function(val) Visuals.Weapon = val end) --TODO
+LibUI:CheckBox("Health", function(val) Visuals.Health = val end)
+LibUI:CheckBox("Chams", function(val)Visuals.Chams = val end) --TODO
 LibUI:CheckBox("Ammo", function(val) Visuals.Ammo = val end)
+LibUI:CheckBox("Box", function(val)Visuals.Box = val end)
+LibUI:Slider("Nametag area", 0, ScrW(), ScrH()/6, function(val) Visuals.NametagArea = val end)
+LibUI:CheckBox("Radar", function(val) Visuals.Radar.Enabled = val end) --TODO
 ----
-LibUI:NewFrame("Miscellaneous") 
+LibUI:NewFrame("MISCELLANEOUS") 
 LibUI:Button("Hide menu", function()
     LibUI:HideFrame("Aimbot")
     LibUI:HideFrame("Visuals")
@@ -541,14 +554,37 @@ LibUI:CheckBox("Autostrafe", function(val) BHopSettings.AutoStrafe = val end)
 LibUI:CheckBox("Thirdperson", function(val) Misc.Thirdperson.Enabled = val end)
 LibUI:Slider("Distance", 0, 250, Misc.Thirdperson.Distance, function(val) Misc.Thirdperson.Distance = val end)
 LibUI:CheckBox("Disable taunts", function(val) Misc.Taunts = val end)
-LibUI:CheckBox("Observer", function(val) Misc.Observer.Enabled = val end)
-LibUI:DropDown("Target", {
-    "Pisun",
-    "Sasun"
-}, 1, function(val)
-    
+LibUI:CheckBox("Resolver", function(val) Misc.Resolver.Enabled = val end) --TODO
+LibUI:Slider("Factor", 0, 360, 0, function(val) Misc.Resolver.Factor = val end) --TODO
+LibUI:CheckBox("Blink", function(val) Misc.Blink = val end) --TODO
+LibUI:CheckBox("Free camera", function(val) Misc.FreeCamera = val end) --TODO
+LibUI:Slider("FOV", 0, 360, --[[TODO]]0, function(val) Misc.FOV = val end) --TODO
+LibUI:Slider("Viewmodel X", 0, 100, 50, function(val) Misc.Viewmodel.X = val end) --TODO
+LibUI:Slider("Viewmodel Y", 0, 100, 50, function(val) Misc.Viewmodel.Y = val end) --TODO
+LibUI:Slider("Viewmodel Z", 0, 100, 50, function(val) Misc.Viewmodel.Z = val end) --TODO
+----
+LibUI:NewFrame("OBSERVER") 
+LibUI:CheckBox("Enabled", function(val) Misc.Observer.Enabled = val end)
+local observerTargetList = LibUI:DropDown("Target", {
+}, "", function(val)
+    for i, ply in ipairs( player.GetAll() ) do
+        if ply:Name() == val then
+            Misc.Observer.Target = ply
+            break
+        end
+    end
 end)
-
+LibUI:DropDown("Mode", {
+    "Firstperson",
+    "Thirdperson"
+}, "Thirdperson", function(val)
+    if val == "Firstperson" then
+        Misc.Observer.Mode = 2
+    elseif val == "Thirdperson" then
+        Misc.Observer.Mode = 1
+    end
+end)
+LibUI:Slider("Distance ", 0, 250, Misc.Observer.Distance, function(val) Misc.Observer.Distance = val end)
 --LibUI:ShowFrame("Aimbot")
 --LibUI:ShowFrame("Visuals")
 --LibUI:ShowFrame("Miscellaneous")
@@ -602,13 +638,15 @@ hook.Add("Think", "BM_Clients_Key", function()
 	if (timeout or 0) < CurTime() and input.IsKeyDown(KEY_DELETE) then
 		timeout = CurTime() + 0.3
 		if LibUI.CurrentFrame.VGUI.Frame:IsVisible() then
-			LibUI:HideFrame("Aimbot")
-            LibUI:HideFrame("Visuals")
-            LibUI:HideFrame("Miscellaneous")
+			LibUI:HideFrame("AIMBOT")
+            LibUI:HideFrame("VISUALS")
+            LibUI:HideFrame("MISCELLANEOUS")
+            LibUI:HideFrame("OBSERVER")
 		else
-			LibUI:ShowFrame("Aimbot")
-            LibUI:ShowFrame("Visuals")
-            LibUI:ShowFrame("Miscellaneous")
+			LibUI:ShowFrame("AIMBOT")
+            LibUI:ShowFrame("VISUALS")
+            LibUI:ShowFrame("MISCELLANEOUS")
+            LibUI:ShowFrame("OBSERVER")
 		end
 	end
 end)
@@ -680,11 +718,10 @@ hook.Add("CreateMove", "Aimbot", function(cmd)
         end
         if Aimbot.Silent then
             Aimbot.Angle = Aimbot.Angle + newAng - LocalPlayer():EyeAngles()
-
         else
             Aimbot.Angle = Angle(0,0,0)
         end
-		cmd:SetViewAngles(Angle(
+        cmd:SetViewAngles(Angle(
 			math.NormalizeAngle(newAng.p),
 			math.NormalizeAngle(newAng.y),
 			0
@@ -713,6 +750,10 @@ end
 local a = 0
 hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
 	--surface.DrawText(tostring(a)) --debug text output
+    surface_SetFont("ESP_SmallS")
+    surface_SetTextPos(4,ScrH()-10)
+    surface_SetTextColor(255,255,255,255)
+    surface_DrawText("Aetheris - v1.0") -- от cлова эфир - невидимая среда, символ легкости и всепроникновения
 
 	surface.SetTextPos(ScrW()/2,ScrH()/2)
     local localPlayer = LocalPlayer()
@@ -910,18 +951,56 @@ local RealAngles = Angle(0,0,0)
 --------Thirdperson---------
 hook.Add("CalcView", "ViewanglesFix", function(ply, pos, angles, fov)
     local drawviewer = false
+    
+    ----Thirdperson----
     if Misc.Thirdperson.Enabled then
         pos = pos - ( angles:Forward() * Misc.Thirdperson.Distance )
         drawviewer = true
     end
-    RealAngles = angles - Aimbot.Angle
+    -------------------
+
+    ----AIMBOT---
     if not Aimbot.Silent or not Aimbot.Angle then
         Aimbot.Angle = Angle(0,0,0)
+    else
+        Aimbot.Angle.y = Aimbot.Angle.y % 360
+        Aimbot.Angle.x = Aimbot.Angle.x % 360
     end
     if Aimbot.VRecoil then
         angles = angles - LocalPlayer():GetViewPunchAngles()
     end
-    Aimbot.SilentAngles = angles
+    -------------
+
+    ----OBSERVER----
+    if Misc.Observer.Enabled and Misc.Observer.Target then
+        local view = {
+            fov = fov,
+            drawviewer = Misc.Observer.Mode == 1
+        }
+        if Misc.Observer.Mode == 2 then
+            view.origin = Misc.Observer.Target:EyePos()
+            view.angles = Misc.Observer.CameraAngle
+        else
+            local targetPos = Misc.Observer.Target:EyePos()
+            local camForward = Misc.Observer.CameraAngle:Forward()
+            local camPos = targetPos - camForward * Misc.Observer.Distance
+
+            local trace = util.TraceLine({
+                start = targetPos,
+                endpos = camPos,
+                filter = {Misc.Observer.Target}
+            })
+            if trace.Hit then
+                camPos = trace.HitPos + trace.HitNormal * 5
+            end
+
+            view.origin = camPos
+            view.angles = Misc.Observer.CameraAngle
+        end
+
+        return view
+    end
+    ----------------
     local view = {
         origin = pos,
         angles = angles - Aimbot.Angle,
@@ -933,19 +1012,14 @@ end)
 ----------Fix movement----------
 hook.Add("CreateMove", "Fix movement", function(cmd)
     if Aimbot.Silent and Aimbot.Angle then
-        local angs = cmd:GetViewAngles()
-        local faa = Aimbot.SilentAngles
-
-        local viewang = Angle(0, angs.y, 0)
-        local fix = Vector(cmd:GetForwardMove(), cmd:GetSideMove(), 0)
-        fix = (fix:Angle() + faa):Forward() * fix:Length()
+        local yaw = cmd:GetViewAngles().y
+        local move = {
+            side = math.cos(yaw),
+            forward = math.sin(yaw)
+        }
         
-        if angs.p > 90 or angs.p < -90 then
-            fix.x = -fix.x
-        end
-        
-        cmd:SetForwardMove(fix.x)
-        cmd:SetSideMove(fix.y)
+        --cmd:SetSideMove(move.side*cmd:GetSideMove())
+        --cmd:SetForwardMove(move.forward*cmd:GetForwardMove())
     end
 end)
 
@@ -963,3 +1037,64 @@ hook.Add("PrePlayerDraw", "preplayerdraw", function(ply)
         end
     end
 end)
+--------OBSERVER---------
+for i, ply in ipairs( player.GetAll() ) do
+    local id = observerTargetList:AddChoice(ply:Name())
+    Misc.Observer.Plrs[id] = ply:Name()
+end
+
+gameevent.Listen( "player_disconnect" )
+hook.Add( "player_disconnect", "observerUpdate", function( data )
+	local name = data.name
+	local id
+    for i, v in ipairs(Misc.Observer.Plrs) do
+        if name == v then
+            id = i
+            break
+        end
+    end
+    if id then
+        observerTargetList:RemoveChoice(id)
+    end
+end)
+
+gameevent.Listen( "player_connect" )
+hook.Add("player_connect", "AnnounceConnection", function( data )
+	local id = observerTargetList:AddChoice(data.name)
+    Misc.Observer.Plrs[id] = data.name
+end)
+
+hook.Add("InputMouseApply", "ObserverMouseControl", function(cmd, x, y, ang)
+    if not Misc.Observer.Enabled then return end
+    
+    Misc.Observer.CameraAngle.p = math.Clamp(Misc.Observer.CameraAngle.p + y * Misc.Observer.MouseSensitivity * 0.02, -89, 89)
+    Misc.Observer.CameraAngle.y = Misc.Observer.CameraAngle.y - x * Misc.Observer.MouseSensitivity * 0.02
+    Misc.Observer.CameraAngle.r = 0
+    
+    return true
+end)
+
+hook.Add("PlayerBindPress", "ObserverZoomControl", function(_, bind)
+    if not Misc.Observer.Enabled or Misc.Observer.Mode ~= 1 then return end
+    
+    if bind == "invnext" then
+        Misc.Observer.Distance = math.Clamp(Misc.Observer.Distance - 10, 50, 500)
+        return true
+    elseif bind == "invprev" then
+        Misc.Observer.Distance = math.Clamp(Misc.Observer.Distance + 10, 50, 500)
+        return true
+    end
+end)
+hook.Add("CreateMove", "ObserverBlockMovement", function(cmd)
+    if Misc.Observer.Enabled then 
+        cmd:SetForwardMove(0)
+        cmd:SetSideMove(0)
+        cmd:SetUpMove(0)
+        cmd:SetButtons(0)
+        
+        cmd:SetViewAngles(Misc.Observer.CameraAngle)
+        
+        return true
+    end
+end)
+--------------------------------
