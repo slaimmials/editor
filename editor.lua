@@ -242,6 +242,67 @@ end
 
 vgui.Register( "CodeEditor", PANEL, "EditablePanel" )
 
+-----------NOTIFICATIONS--------------
+local notifications = {}
+
+surface.CreateFont("NotifyFont", {
+    font = "Roboto",
+    size = 22,
+    weight = 500,
+    antialias = true
+})
+
+function Notify(text, color, duration)
+    table.insert(notifications, {
+        text = text,
+        color = color or Color(240, 240, 240),
+        duration = duration or 5,
+        startTime = CurTime(),
+        yOffset = 0,
+        alpha = 0
+    })
+end
+
+hook.Add("DrawOverlay", "DrawNotifications", function()
+    local currentTime = CurTime()
+    local screenWidth = ScrW()
+    local startY = 40
+    local spacing = 5
+    
+    for i = #notifications, 1, -1 do
+        local notif = notifications[i]
+        local elapsed = currentTime - notif.startTime
+        local lifePercent = elapsed / notif.duration
+        if lifePercent > 1 then
+            table.remove(notifications, i)
+            continue
+        end
+        notif.alpha = math.Clamp(notif.alpha + (FrameTime() * 8), 0, 1)
+        local animAlpha = 255 * notif.alpha
+        notif.yOffset = Lerp(FrameTime() * 10, notif.yOffset, (i - 1) * 30)
+        
+        local width = 300
+        local height = 30
+		local x = 20 + width
+        local y = startY + notif.yOffset
+        surface.SetDrawColor(30, 30, 40, animAlpha * 0.9)
+        surface.DrawRect(x - width, y, width, height)
+        surface.SetDrawColor(notif.color.r, notif.color.g, notif.color.b, animAlpha)
+        surface.DrawRect(x - width, y, 4, height)
+        draw.SimpleText(
+            notif.text,
+            "NotifyFont",
+            x - width + 10,
+            y + 4,
+            Color(255, 255, 255, animAlpha),
+            TEXT_ALIGN_LEFT,
+            TEXT_ALIGN_BOTTOM
+        )
+    end
+end)
+
+---------------------------------------------
+
 
 local surface = surface 
 
@@ -337,8 +398,9 @@ local function UpdateFiles()
 		end
 	
 		function hButton:DoRightClick()
-			if not IsInGame() then return end 
+			if not IsInGame() then Notify("You are not in game", Color(153,0,0), 2) return end 
 			RunOnClient( file.Read( "slua/saved/" .. val, "DATA" ) )
+			Notify("Executed", Color(0,150,0), 10)
 		end
 	end
 end
@@ -355,8 +417,8 @@ local options = {
 	
 	[ "Save" ] = { 
 		function( self ) 
-			file.Write( "slua/saved/" .. os.time() .. ".txt", ePan:GetCode():sub(#B_STR12,#ePan:GetCode()) ) 
-			--FileName = os.time()
+			file.Write( "slua/saved/" .. CurTime() .. ".txt", ePan:GetCode():sub(#B_STR12,#ePan:GetCode()) ) 
+			--FileName = CurTime()
 			UpdateFiles() 
 		end, Color( 184, 187, 222 ), 1 
 	},
@@ -450,3 +512,4 @@ hook.Add("Think", "Update", function()
 end)
 print("This recode made by 0xDEAD")
 print("Version v2")
+Notify("Successfully loaded executor", Color(0,150,0), 10)
