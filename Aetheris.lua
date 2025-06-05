@@ -465,14 +465,17 @@ end
 
 local Aimbot = {
 	Enabled = false,
-	FOV = 6,
-	Target = nil,
-	Smoothness = 0,
-	Silent = false,
-	PredictTypes = {},
-	TeamCheck = false,
-    Angle = Angle(0,0,0),
+    Silent = false,
+    TeamCheck = false,
+    WallCheck = false,
     VRecoil = false,
+    AutoFire = false,
+	FOV = 6,
+    Smoothness = 0,
+
+	Target = nil,
+	PredictTypes = {},
+    Angle = Angle(0,0,0),
 }
 
 local Visuals = {
@@ -480,17 +483,20 @@ local Visuals = {
 	Box = false,
 	Health = false,
 	Nametags = false,
-    NametagArea = ScrH()/6,
     Ammo = false,
 	Dormant = false,
+    Weapon = false,
+
+    NametagArea = ScrH()/6,
+    Radar = { Enabled = false },
 }
 
 local BHopSettings = {
     Enabled = false,
     AutoStrafe = false,
+    State = false,
     StrafeSpeed = 400,
     LastJumpTime = 0,
-    State = false,
     LastYaw = 0
 }
 
@@ -509,16 +515,24 @@ local Misc = {
         MouseSensitivity = 1,
         Plrs = {}
     },
+    Viewmodel = { 
+        X = 50, 
+        Y = 50, 
+        Z = 50 
+    },
+    FOV = 90,
     Taunts = false,
 }
+
 --------UI STRUCTING----------
 
 LibUI:NewFrame("AIMBOT")
 --LibUI:Label("Aimbot")
 LibUI:CheckBox("Enable", function(val)Aimbot.Enabled = val end)
-LibUI:CheckBox("Auto penetration", function(val)Aimbot.AutoPenetration = val end) --TODO
+--LibUI:CheckBox("Auto penetration", function(val)Aimbot.AutoPenetration = val end) --TODO
 LibUI:CheckBox("Team check", function(val)Aimbot.TeamCheck = val end)
-LibUI:CheckBox("Auto fire", function(val)Aimbot.AutoFire = val end) --TODO
+LibUI:CheckBox("Wall check", function(val)Aimbot.WallCheck = val end)
+LibUI:CheckBox("Auto fire", function(val)Aimbot.AutoFire = val end)
 LibUI:CheckBox("Silent", function(val)Aimbot.Silent = val end)
 LibUI:MultiDropDown("Predict", {
     ["Velocity"] = "Velocity",
@@ -530,6 +544,8 @@ end)
 LibUI:Slider("FOV", 1, 180, Aimbot.FOV, function(val)Aimbot.FOV = val end)
 LibUI:Slider("Smoothness", 0, 1, Aimbot.Smoothness, function(val)Aimbot.Smoothness = val end)
 LibUI:CheckBox("No vrecoil", function(val)Aimbot.VRecoil = val end)
+--LibUI:CheckBox("No recoil", function(val)Aimbot.Recoil = val end)
+--LibUI:CheckBox("No spread", function(val)Aimbot.Spread = val end)
 ----
 LibUI:NewFrame("VISUALS")
 LibUI:CheckBox("Wallhack", function(val)Visuals.Wallhack = val end)
@@ -537,11 +553,11 @@ LibUI:CheckBox("Nametags", function(val) Visuals.Nametags = val end)
 LibUI:CheckBox("Dormant", function(val)Visuals.Dormant = val end)
 LibUI:CheckBox("Weapon", function(val) Visuals.Weapon = val end) --TODO
 LibUI:CheckBox("Health", function(val) Visuals.Health = val end)
-LibUI:CheckBox("Chams", function(val)Visuals.Chams = val end) --TODO
+--LibUI:CheckBox("Chams", function(val)Visuals.Chams = val end) --TODO
 LibUI:CheckBox("Ammo", function(val) Visuals.Ammo = val end)
 LibUI:CheckBox("Box", function(val)Visuals.Box = val end)
 LibUI:Slider("Nametag area", 0, ScrW(), ScrH()/6, function(val) Visuals.NametagArea = val end)
-LibUI:CheckBox("Radar", function(val) Visuals.Radar.Enabled = val end) --TODO
+LibUI:CheckBox("Radar", function(val) Visuals.Radar.Enabled = val end)
 ----
 LibUI:NewFrame("MISCELLANEOUS") 
 LibUI:Button("Hide menu", function()
@@ -554,14 +570,14 @@ LibUI:CheckBox("Autostrafe", function(val) BHopSettings.AutoStrafe = val end)
 LibUI:CheckBox("Thirdperson", function(val) Misc.Thirdperson.Enabled = val end)
 LibUI:Slider("Distance", 0, 250, Misc.Thirdperson.Distance, function(val) Misc.Thirdperson.Distance = val end)
 LibUI:CheckBox("Disable taunts", function(val) Misc.Taunts = val end)
-LibUI:CheckBox("Resolver", function(val) Misc.Resolver.Enabled = val end) --TODO
-LibUI:Slider("Factor", 0, 360, 0, function(val) Misc.Resolver.Factor = val end) --TODO
+--LibUI:CheckBox("Resolver", function(val) Misc.Resolver.Enabled = val end) --TODO
+--LibUI:Slider("Factor", 0, 360, 0, function(val) Misc.Resolver.Factor = val end) --TODO
 LibUI:CheckBox("Blink", function(val) Misc.Blink = val end) --TODO
-LibUI:CheckBox("Free camera", function(val) Misc.FreeCamera = val end) --TODO
-LibUI:Slider("FOV", 0, 360, --[[TODO]]0, function(val) Misc.FOV = val end) --TODO
-LibUI:Slider("Viewmodel X", 0, 100, 50, function(val) Misc.Viewmodel.X = val end) --TODO
-LibUI:Slider("Viewmodel Y", 0, 100, 50, function(val) Misc.Viewmodel.Y = val end) --TODO
-LibUI:Slider("Viewmodel Z", 0, 100, 50, function(val) Misc.Viewmodel.Z = val end) --TODO
+--LibUI:CheckBox("Free camera", function(val) Misc.FreeCamera = val end) --TODO
+LibUI:Slider("FOV", 0, 360, Misc.FOV, function(val) Misc.FOV = val end)
+LibUI:Slider("Viewmodel X", 0, 100, Misc.Viewmodel.X, function(val) Misc.Viewmodel.X = val end)
+LibUI:Slider("Viewmodel Y", 0, 100, Misc.Viewmodel.Y, function(val) Misc.Viewmodel.Y = val end)
+LibUI:Slider("Viewmodel Z", 0, 100, Misc.Viewmodel.Z, function(val) Misc.Viewmodel.Z = val end)
 ----
 LibUI:NewFrame("OBSERVER") 
 LibUI:CheckBox("Enabled", function(val) Misc.Observer.Enabled = val end)
@@ -652,20 +668,20 @@ hook.Add("Think", "BM_Clients_Key", function()
 end)
 
 hook.Add("CreateMove", "Aimbot", function(cmd)
-    if not Aimbot.Enabled or not input.IsMouseDown(MOUSE_RIGHT) then Aimbot.Angle = Angle(0,0,0)  return end
+    if not Aimbot.Enabled or not input.IsMouseDown(MOUSE_RIGHT) then Aimbot.Angle = Angle(0,0,0) return end
 
-    local localPlayer = LocalPlayer()
-    local cameraPos = localPlayer:GetShootPos()
-    local cameraAng = localPlayer:GetAimVector():Angle()
+    local lplr = LocalPlayer()
+    local cameraPos = lplr:GetShootPos()
+    local cameraAng = lplr:GetAimVector():Angle()
     local cameraForward = cameraAng:Forward()
     
     local bestDelta = Aimbot.FOV
     local bestTarget = nil
 
     for _, ply in ipairs(player.GetAll()) do
-        if ply == localPlayer then continue end
+        if ply == lplr then continue end
         if not ply:Alive() then continue end
-        if ply:Team() == localPlayer:Team() and Aimbot.TeamCheck then continue end
+        if ply:Team() == lplr:Team() and Aimbot.TeamCheck then continue end
         if ply:IsDormant() then continue end
 
         local targetPos = ply:GetShootPos()
@@ -673,6 +689,20 @@ hook.Add("CreateMove", "Aimbot", function(cmd)
         local angleDelta = math.deg(math.acos(cameraForward:Dot(direction)))
         
         if angleDelta < bestDelta then
+            local trace = util.TraceLine({
+                start = lplr:GetShootPos(),
+                endpos = ply:GetBonePosition(ply:LookupBone("ValveBiped.Bip01_Head1")),
+                filter = function(ent) 
+                    return ent ~= lplr
+                end
+            })
+
+            if Aimbot.WallCheck then
+                if not trace.Hit or trace.Entity ~= ply then
+                    continue
+                end
+            end
+
             bestDelta = angleDelta
             bestTarget = ply
         end
@@ -681,37 +711,32 @@ hook.Add("CreateMove", "Aimbot", function(cmd)
 	Aimbot.Target = bestTarget
 
 	if IsValid(Aimbot.Target) and not Aimbot.Target:IsDormant() then
-		local targetPos = Aimbot.Target:GetBonePosition(Aimbot.Target:LookupBone("ValveBiped.Bip01_Head1")) 
-			or Aimbot.Target:EyePos()
-		if targetPos then
-			targetPos = targetPos + Vector(0, 0, 1)
-		end
+        local boneIndex = Aimbot.Target:LookupBone("ValveBiped.Bip01_Head1")
+        local targetPos = (boneIndex and Aimbot.Target:GetBonePosition(boneIndex)) or Aimbot.Target:EyePos()
+        if targetPos then
+            targetPos = targetPos + Vector(0, 0, 1)
+        end
 
-		local ping = LocalPlayer():Ping() / 1000
-		local predictionTime = 1
+        local predictionTime = 0
+        if Aimbot.PredictTypes.Ping then
+            predictionTime = predictionTime + (lplr:Ping() / 1000)
+        end
+        if Aimbot.PredictTypes.Ballistics then
+            local weapon = lplr:GetActiveWeapon()
+            if IsValid(weapon) and weapon.Primary and weapon.Primary.Speed then
+                local distance = cameraPos:Distance(targetPos)
+                local bulletSpeed = weapon.Primary.Speed
+                predictionTime = predictionTime + (distance / bulletSpeed)
+            end
+        end
 
-		if Aimbot.PredictTypes.Ping then
-			predictionTime = predictionTime + (ping * 0.5)
-		end
+        local predictedPos = targetPos
+        if Aimbot.PredictTypes.Velocity and predictionTime > 0 then
+            local targetVel = Aimbot.Target:GetVelocity()
+            predictedPos = predictedPos + targetVel * predictionTime
+        end
 
-		local weapon = LocalPlayer():GetActiveWeapon()
-		if IsValid(weapon) and Aimbot.PredictTypes.Ballistics then
-			local bulletSpeed = weapon.Primary and weapon.Primary.ProjectileVelocity or 10000
-			if bulletSpeed > 0 then
-				local cameraPos = LocalPlayer():EyePos()
-				local distance = targetPos:Distance(cameraPos)
-				predictionTime = predictionTime + (distance / bulletSpeed)
-			end
-		end
-
-		local velocity = Vector(0, 0, 0)
-		if Aimbot.PredictTypes.Velocity and predictionTime > 0 then
-			velocity = Aimbot.Target:GetVelocity()/10 * predictionTime
-		end
-
-		targetPos = targetPos + velocity
-		
-		local targetAng = (targetPos - cameraPos):Angle()
+        local targetAng = (predictedPos - cameraPos):Angle()
         local newAng = targetAng
         if Aimbot.Smoothness > 0 then
             newAng = LerpAngle((1 - Aimbot.Smoothness) * FrameTime() * 50, cameraAng, targetAng)
@@ -721,16 +746,36 @@ hook.Add("CreateMove", "Aimbot", function(cmd)
         else
             Aimbot.Angle = Angle(0,0,0)
         end
+
         cmd:SetViewAngles(Angle(
-			math.NormalizeAngle(newAng.p),
-			math.NormalizeAngle(newAng.y),
-			0
-		))
-	end
+            math.NormalizeAngle(newAng.p),
+            math.NormalizeAngle(newAng.y),
+            0
+        ))
+
+        if Aimbot.AutoFire and IsValid(Aimbot.Target) then
+            local boneIndex = Aimbot.Target:LookupBone("ValveBiped.Bip01_Head1")
+            if not boneIndex then return end
+            local targetPos = Aimbot.Target:GetBonePosition(boneIndex)
+            if not targetPos then return end
+
+            local trace = util.TraceLine({
+                start = lplr:GetShootPos(),
+                endpos = targetPos,
+                filter = function(ent) 
+                    return ent ~= lplr
+                end
+            })
+            
+            if trace.Hit and trace.Entity == Aimbot.Target then
+                cmd:SetButtons(bit.bor(cmd:GetButtons(), IN_ATTACK))
+            end
+        end
+    end
 end)
 
 local hudDrawingFake = {
-	fakeRT = GetRenderTarget("fakeRT" .. os.time(), ScrW(), ScrH()),
+	fakeRT = GetRenderTarget("fakeRT"..rand_str(math.random(10,20)), ScrW(), ScrH()),
 	ENames = {
 		Wallhack = rand_str(7),
 	},
@@ -756,12 +801,12 @@ hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
     surface_DrawText("Aetheris - v1.0") -- от cлова эфир - невидимая среда, символ легкости и всепроникновения
 
 	surface.SetTextPos(ScrW()/2,ScrH()/2)
-    local localPlayer = LocalPlayer()
+    local lplr = LocalPlayer()
     local scrW, scrH = ScrW(), ScrH()
     local scrCenterX, scrCenterY = scrW/2, scrH/2
     
     if Aimbot.Enabled and Aimbot.FOV > 0 then
-        local degree = scrW / localPlayer:GetFOV()
+        local degree = scrW / lplr:GetFOV()
         surface_SetDrawColor(255, 255, 255, 255)
         surface.DrawCircle(scrCenterX, scrCenterY, (degree * Aimbot.FOV)/2, 255, 255, 255, 255)
     end
@@ -773,7 +818,7 @@ hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
     
     for i = 1, #players do
         local ply = players[i]
-        if not IsValid(ply) or ply == localPlayer or not ply:Alive() then continue end
+        if not IsValid(ply) or ply == lplr or not ply:Alive() then continue end
         
         local isDormant = ply:IsDormant()
         if not showDormant and isDormant then continue end
@@ -819,7 +864,7 @@ hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
             local healthColor = isDormant and 
                 Color(100 * healthPercentage, 100 * healthPercentage, 100 * healthPercentage) or 
                 Color(255 - 255 * healthPercentage, 255 * healthPercentage, 0)
-            if healthPercentage > 100 then
+            if healthPercentage*100 > 100 then
                 healthColor = Color(190,0,255)
             end
             surface_SetDrawColor(healthColor)
@@ -870,36 +915,128 @@ hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
             surface_SetTextPos(ammoX, ammoY)
             surface_DrawText(ammoText)
         end
+
+        if Visuals.Weapon then
+            local weapon = ply:GetActiveWeapon()
+
+            if IsValid(weapon) then
+                draw.SimpleText(weapon:GetClass(), "ESP_Big", boxX+width/2, boxY+height+8, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+            end
+        end
+    end
+
+    if Visuals.Radar.Enabled then
+        local screenW, screenH = ScrW(), ScrH()
+        local radarSize = 160
+        local margin = 20
+        local radarX = screenW - radarSize - margin 
+        local radarY = margin
+        local maxDist = 2000
+
+        local colorRadar = Color(96, 180, 100, 220) -- основной цвет (поле зрения, игрок, обводка)
+        local colorRadarBG = Color(24, 30, 36, 200) -- фон радара
+        local colorFov = Color(96, 180, 100, 60)    -- полупрозрачный сектор
+        local colorEnemy = Color(255, 60, 60, 230)  -- цвет игроков
+
+        local ply = LocalPlayer()
+        local plyPos = ply:GetPos()
+        local plyAng = ply:EyeAngles().y
+
+        surface.SetDrawColor(colorRadarBG)
+        surface.DrawRect(radarX, radarY, radarSize, radarSize)
+        surface.SetDrawColor(colorRadar)
+        surface.DrawOutlinedRect(radarX, radarY, radarSize, radarSize, 2)
+
+        local centerX = radarX + radarSize * 0.5
+        local centerY = radarY + radarSize * 0.5
+        local radarRadius = radarSize * 0.5
+        do
+            local fov = 90
+            local segments = 32
+            local startAng = math.rad(-fov / 2)
+            local endAng = math.rad(fov / 2)
+            surface.SetDrawColor(colorFov)
+            local verts = {}
+            table.insert(verts, { x = centerX, y = centerY })
+            for i = 0, segments do
+                local ang = math.rad(plyAng) + startAng + (endAng - startAng) * (i / segments)
+                local x = centerX + math.cos(ang) * radarRadius
+                local y = centerY + math.sin(ang) * radarRadius
+                table.insert(verts, { x = x, y = y })
+            end
+            draw.NoTexture()
+            surface.DrawPoly(verts)
+        end
+
+        local myRadius = 9
+        surface.SetDrawColor(colorRadar)
+        surface.DrawCircle(centerX, centerY, myRadius, colorRadar.r, colorRadar.g, colorRadar.b, colorRadar.a)
+
+        local enemyRadius = math.floor(myRadius / 3)
+        for _, v in ipairs(player.GetAll()) do
+            if v == ply or not v:Alive() then continue end
+
+            local relPos = v:GetPos() - plyPos
+            local rx = relPos.x
+            local ry = relPos.y
+            local dist = math.sqrt(rx^2 + ry^2)
+            if dist > maxDist then continue end
+            local scale = radarRadius / maxDist
+            local px = centerX + rx * scale
+            local py = centerY + ry * scale
+
+            if px < radarX + enemyRadius then px = radarX + enemyRadius end
+            if px > radarX + radarSize - enemyRadius then px = radarX + radarSize - enemyRadius end
+            if py < radarY + enemyRadius then py = radarY + enemyRadius end
+            if py > radarY + radarSize - enemyRadius then py = radarY + radarSize - enemyRadius end
+            surface.SetDrawColor(colorEnemy)
+            draw.NoTexture()
+            surface.DrawFilledCircle(px, py, enemyRadius)
+        end
+    end
+
+    if not surface.DrawFilledCircle then
+        function surface.DrawFilledCircle( x, y, radius )
+            local segments = 32
+            local verts = {}
+            table.insert(verts, {x = x, y = y})
+            for i = 0, segments do
+                local ang = math.rad((i / segments) * 360)
+                table.insert(verts, { x = x + math.cos(ang) * radius, y = y + math.sin(ang) * radius })
+            end
+            draw.NoTexture()
+            surface.DrawPoly(verts)
+        end
     end
 end)
 
 hook.Add("RenderScene", "AntiScreenGrab", function(vOrigin, vAngle, vFOV)
-	local view = {
-		x = 0,
-		y = 0,
-		w = ScrW(),
-		h = ScrH(),
-		dopostprocess = true,
-		origin = vOrigin,
-		angles = vAngle,
-		fov = vFOV,
-		drawhud = true,
-		drawmonitors = true,
-		drawviewmodel = true,
-	}
+    local view = {
+        x = 0,
+        y = 0,
+        w = ScrW(),
+        h = ScrH(),
+        dopostprocess = true,
+        origin = vOrigin,
+        angles = vAngle,
+        fov = vFOV,
+        drawhud = true,
+        drawmonitors = true,
+        drawviewmodel = true,
+    }
 
-	render.RenderView(view)
-	--render.CopyTexture( nil, fakeRT )
+    render.RenderView(view)
+    render.CopyRenderTargetToTexture(hudDrawingFake.fakeRT)
 
-	cam.Start2D()
-	for _, rName in pairs(hudDrawingFake.ENames) do
-		hook.Run(rName .. "HUDPaint")
-	end
-	cam.End2D()
+    cam.Start2D()
+    for _, rName in pairs(hudDrawingFake.ENames) do
+        hook.Run(rName .. "HUDPaint")
+    end
+    cam.End2D()
 
-	render.SetRenderTarget(fakeRT)
+    render.SetRenderTarget(hudDrawingFake.fakeRT)
 
-	return true
+    return true
 end)
 
 hook.Add("ShutDown", "RemoveAntiScreenGrab", function()
@@ -948,10 +1085,14 @@ end)
 
 local RealAngles = Angle(0,0,0)
 
---------Thirdperson---------
+------------------------
 hook.Add("CalcView", "ViewanglesFix", function(ply, pos, angles, fov)
     local drawviewer = false
     
+    if Misc.FOV and Misc.FOV ~= 0 then
+        fov = Misc.FOV
+    end
+
     ----Thirdperson----
     if Misc.Thirdperson.Enabled then
         pos = pos - ( angles:Forward() * Misc.Thirdperson.Distance )
@@ -1012,14 +1153,17 @@ end)
 ----------Fix movement----------
 hook.Add("CreateMove", "Fix movement", function(cmd)
     if Aimbot.Silent and Aimbot.Angle then
-        local yaw = cmd:GetViewAngles().y
-        local move = {
-            side = math.cos(yaw),
-            forward = math.sin(yaw)
-        }
-        
-        --cmd:SetSideMove(move.side*cmd:GetSideMove())
-        --cmd:SetForwardMove(move.forward*cmd:GetForwardMove())
+        local realAng = cmd:GetViewAngles()
+        local silentAng = realAng + Aimbot.Angle
+        local deltaYaw = math.NormalizeAngle(silentAng.y - realAng.y)
+        local rad = math.rad(deltaYaw)
+        local forward = cmd:GetForwardMove()
+        local side = cmd:GetSideMove()
+
+        local newForward = math.cos(rad) * forward - math.sin(rad) * side
+        local newSide = math.sin(rad) * forward + math.cos(rad) * side
+        cmd:SetForwardMove(newForward)
+        cmd:SetSideMove(newSide)
     end
 end)
 
@@ -1098,3 +1242,14 @@ hook.Add("CreateMove", "ObserverBlockMovement", function(cmd)
     end
 end)
 --------------------------------
+hook.Add("CalcViewModelView", "MiscViewmodelOffset", function(wep, vm, oldPos, oldAng, pos, ang)
+    if not Misc.Viewmodel then return end
+    local offset = Vector(
+        Misc.Viewmodel.X - 50,
+        Misc.Viewmodel.Y - 50,
+        Misc.Viewmodel.Z - 50
+    )
+    pos = pos + ang:Forward() * offset.x + ang:Right() * offset.y + ang:Up() * offset.z
+    return pos, ang
+end)
+---------------------------------
