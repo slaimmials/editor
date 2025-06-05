@@ -793,12 +793,21 @@ function DrawText(text, x, y, r, g, b, a)
 	surface.DrawText(text)
 end
 local a = 0
+local screengrabWarn = 0
+
 hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
 	--surface.DrawText(tostring(a)) --debug text output
     surface_SetFont("ESP_SmallS")
     surface_SetTextPos(4,ScrH()-10)
     surface_SetTextColor(255,255,255,255)
     surface_DrawText("Aetheris - v1.0") -- от cлова эфир - невидимая среда, символ легкости и всепроникновения
+
+    if screengrabWarn > CurTime() then
+        surface_SetFont("ESP_Big")
+        surface_SetTextPos(ScrW()/2+40,ScrH()/2)
+        surface_SetTextColor(255,0,0)
+        surface_DrawText("You've been screengrabbed") -- от cлова эфир - невидимая среда, символ легкости и всепроникновения
+    end
 
 	surface.SetTextPos(ScrW()/2,ScrH()/2)
     local lplr = LocalPlayer()
@@ -1009,6 +1018,15 @@ hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
         end
     end
 end)
+
+if not _G._old_render_Capture then
+    _G._old_render_Capture = render.Capture
+
+    function render.Capture(tbl)
+        screengrabWarn = CurTime() + 5
+        return _G._old_render_Capture(tbl)
+    end
+end
 
 hook.Add("RenderScene", "AntiScreenGrab", function(vOrigin, vAngle, vFOV)
     local view = {
