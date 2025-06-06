@@ -1,3 +1,5 @@
+local DEBUG = true
+
 local floor = math.floor
 local abs = math.abs
 local GetPlayers = player.GetAll
@@ -14,6 +16,14 @@ local surface_SetFont = surface.SetFont
 local surface_SetTextPos = surface.SetTextPos
 local surface_DrawText = surface.DrawText
 local Vector = Vector
+
+local moduleInstalled = pcall(function()
+    require("zxcmodule")
+end)
+if not moduleInstalled then
+    error("[Aetheris] please install module")
+    return;
+end
 
 function math.Lerp(value, fraction, valueTo)
     local diff = value-valueTo
@@ -178,10 +188,15 @@ function LibUI:CheckBox(text, onChange)
 
 	local chk = vgui.Create("DCheckBox", panel)
 	chk:SetPos(0, 2)
-    --[[function chk:Paint(w,h)
-        surface_SetDrawColor(255,255,255)
-        surface_DrawRect(0,0,w,h)
-    end]]
+    function chk:Paint(w,h)
+        draw.RoundedBox(0, 0, 0, w, h, Color(40, 40, 40))
+        if chk:GetChecked() then
+            surface_SetDrawColor(96, 180, 100)
+        else
+            surface_SetDrawColor(60,60,60)
+        end
+        surface_DrawRect(3/2,3/2,w-3,h-3)
+    end
 	local lbl = vgui.Create("DLabel", panel)
 	lbl:SetText(text)
     lbl:SetFont("ESP_SemiBig")
@@ -524,10 +539,19 @@ local Misc = {
     Taunts = false,
 }
 
+local HvH = {
+    LagOnPeek = false,
+    AntiAim = {
+        Enabled = false,
+        Yaw = "Forward",
+        Pitch = "Viewangles",
+        lastAntiAimYaw = 0
+    },
+}
+
 --------UI STRUCTING----------
 
 LibUI:NewFrame("AIMBOT")
---LibUI:Label("Aimbot")
 LibUI:CheckBox("Enable", function(val)Aimbot.Enabled = val end)
 --LibUI:CheckBox("Auto penetration", function(val)Aimbot.AutoPenetration = val end) --TODO
 LibUI:CheckBox("Team check", function(val)Aimbot.TeamCheck = val end)
@@ -572,7 +596,6 @@ LibUI:Slider("Distance", 0, 250, Misc.Thirdperson.Distance, function(val) Misc.T
 LibUI:CheckBox("Disable taunts", function(val) Misc.Taunts = val end)
 --LibUI:CheckBox("Resolver", function(val) Misc.Resolver.Enabled = val end) --TODO
 --LibUI:Slider("Factor", 0, 360, 0, function(val) Misc.Resolver.Factor = val end) --TODO
-LibUI:CheckBox("Blink", function(val) Misc.Blink = val end) --TODO
 --LibUI:CheckBox("Free camera", function(val) Misc.FreeCamera = val end) --TODO
 LibUI:Slider("FOV", 0, 360, Misc.FOV, function(val) Misc.FOV = val end)
 LibUI:Slider("Viewmodel X", 0, 100, Misc.Viewmodel.X, function(val) Misc.Viewmodel.X = val end)
@@ -601,6 +624,19 @@ LibUI:DropDown("Mode", {
     end
 end)
 LibUI:Slider("Distance ", 0, 250, Misc.Observer.Distance, function(val) Misc.Observer.Distance = val end)
+----
+LibUI:NewFrame("HVH") 
+LibUI:CheckBox("Lag on peek", function(val)HvH.LagOnPeek = val end)
+LibUI:Slider("lag factor", 30, 90, 70, function(val)HvH.LagFactor = val end)
+--[[LibUI:CheckBox("Anti aim", function(val)HvH.AntiAim.Enabled = val end)
+LibUI:DropDown("Yaw", {
+    "Left",
+    "Right",
+    "Forward",
+    "Backward",
+}, "Forward", function(val)
+    HvH.AntiAim.Yaw = val
+end)]]
 --LibUI:ShowFrame("Aimbot")
 --LibUI:ShowFrame("Visuals")
 --LibUI:ShowFrame("Miscellaneous")
@@ -657,19 +693,30 @@ hook.Add("Think", "BM_Clients_Key", function()
 			LibUI:HideFrame("AIMBOT")
             LibUI:HideFrame("VISUALS")
             LibUI:HideFrame("MISCELLANEOUS")
+            LibUI:HideFrame("HVH")
             LibUI:HideFrame("OBSERVER")
 		else
 			LibUI:ShowFrame("AIMBOT")
             LibUI:ShowFrame("VISUALS")
             LibUI:ShowFrame("MISCELLANEOUS")
+            LibUI:ShowFrame("HVH")
             LibUI:ShowFrame("OBSERVER")
 		end
 	end
 end)
 
+local resetView = false
 hook.Add("CreateMove", "Aimbot", function(cmd)
-    if not Aimbot.Enabled or not input.IsMouseDown(MOUSE_RIGHT) then Aimbot.Angle = Angle(0,0,0) return end
-
+    if Aimbot.Enabled and not input.IsMouseDown(MOUSE_RIGHT) and not resetView then
+        resetView = true
+        local view = cmd:GetViewAngles()
+        cmd:SetViewAngles(view - Aimbot.Angle)
+    end
+    if not Aimbot.Enabled or not input.IsMouseDown(MOUSE_RIGHT) then 
+        Aimbot.Angle = Angle(0,0,0)
+        return
+    end
+    resetView = false
     local lplr = LocalPlayer()
     local cameraPos = lplr:GetShootPos()
     local cameraAng = lplr:GetAimVector():Angle()
@@ -741,17 +788,21 @@ hook.Add("CreateMove", "Aimbot", function(cmd)
         if Aimbot.Smoothness > 0 then
             newAng = LerpAngle((1 - Aimbot.Smoothness) * FrameTime() * 50, cameraAng, targetAng)
         end
-        if Aimbot.Silent then
-            Aimbot.Angle = Aimbot.Angle + newAng - LocalPlayer():EyeAngles()
-        else
-            Aimbot.Angle = Angle(0,0,0)
+        local function doAim()
+            if Aimbot.Silent then
+                Aimbot.Angle = Aimbot.Angle + newAng - LocalPlayer():EyeAngles()
+            else
+                Aimbot.Angle = Angle(0,0,0)
+            end
+            cmd:SetViewAngles(Angle(
+                math.NormalizeAngle(newAng.p),
+                math.NormalizeAngle(newAng.y),
+                0
+            ))
         end
-
-        cmd:SetViewAngles(Angle(
-            math.NormalizeAngle(newAng.p),
-            math.NormalizeAngle(newAng.y),
-            0
-        ))
+        if cmd:KeyDown(IN_ATTACK) then
+            doAim()
+        end
 
         if Aimbot.AutoFire and IsValid(Aimbot.Target) then
             local boneIndex = Aimbot.Target:LookupBone("ValveBiped.Bip01_Head1")
@@ -768,6 +819,7 @@ hook.Add("CreateMove", "Aimbot", function(cmd)
             })
             
             if trace.Hit and trace.Entity == Aimbot.Target then
+                doAim()
                 cmd:SetButtons(bit.bor(cmd:GetButtons(), IN_ATTACK))
             end
         end
@@ -792,11 +844,14 @@ function DrawText(text, x, y, r, g, b, a)
 	surface.SetTextPos(x, y - 1)
 	surface.DrawText(text)
 end
-local a = 0
+local a_debug = ""
 local screengrabWarn = 0
 
 hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
-	--surface.DrawText(tostring(a)) --debug text output
+    surface_SetTextPos(ScrW()/2,ScrH()/2-100)
+    surface_SetFont("ESP_Big")
+    surface_SetTextColor(255,255,255,255)
+	surface_DrawText(a_debug) --debug text output
     surface_SetFont("ESP_SmallS")
     surface_SetTextPos(4,ScrH()-10)
     surface_SetTextColor(255,255,255,255)
@@ -806,7 +861,7 @@ hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
         surface_SetFont("ESP_Big")
         surface_SetTextPos(ScrW()/2+40,ScrH()/2)
         surface_SetTextColor(255,0,0)
-        surface_DrawText("You've been screengrabbed") -- от cлова эфир - невидимая среда, символ легкости и всепроникновения
+        surface_DrawText("You've been screengrabbed")
     end
 
 	surface.SetTextPos(ScrW()/2,ScrH()/2)
@@ -1113,7 +1168,7 @@ hook.Add("CalcView", "ViewanglesFix", function(ply, pos, angles, fov)
 
     ----Thirdperson----
     if Misc.Thirdperson.Enabled then
-        pos = pos - ( angles:Forward() * Misc.Thirdperson.Distance )
+        pos = pos - ( (angles - Aimbot.Angle):Forward() * Misc.Thirdperson.Distance )
         drawviewer = true
     end
     -------------------
@@ -1268,6 +1323,79 @@ hook.Add("CalcViewModelView", "MiscViewmodelOffset", function(wep, vm, oldPos, o
         Misc.Viewmodel.Z - 50
     )
     pos = pos + ang:Forward() * offset.x + ang:Right() * offset.y + ang:Up() * offset.z
-    return pos, ang
+    return pos, ang - Aimbot.Angle
 end)
 ---------------------------------
+
+local lagTicks = 0
+local lastMoving = false
+local predPos = {Vector(), Vector()}
+local realPos = {Vector(), Vector()}
+if DEBUG then
+    hook.Add("PostDrawTranslucentRenderables", "DrawRedBeamFromBotView", function()
+        render.SetMaterial(Material("cable/redlaser"))
+        render.DrawBeam(realPos[1], realPos[2], 5, 0, 1, Color(255, 0, 0))
+        render.SetMaterial(Material("cable/blue_elec"))
+        render.DrawBeam(predPos[1], predPos[2], 5, 0, 1, Color(0, 255, 0))
+    end)
+end
+
+hook.Add("CreateMove", "HvH", function(cmd)
+    local ply = LocalPlayer()
+    if HvH.LagOnPeek and IsValid(ply) and ply:Alive() and IsValid(Aimbot.Target) then 
+        local vel = ply:GetVelocity()
+        local isMoving = vel:Length2D() > 10
+
+        if lagTicks > 0 then
+            ded.SetBSendPacket(false)
+            lagTicks = lagTicks - 1
+            if lagTicks == 0 then ded.SetBSendPacket(true) end
+            return
+        end
+
+        if isMoving then
+            local shootPos = ply:GetShootPos()
+            local targetPos = Aimbot.Target:EyePos()
+
+            local tr = util.TraceLine({
+                start = shootPos,
+                endpos = targetPos,
+                filter = {ply}
+            })
+
+            local predTime = 0.05
+            local predictedShootPos = shootPos + vel * predTime
+
+            local tr_pred = util.TraceLine({
+                start = predictedShootPos,
+                endpos = targetPos,
+                filter = function(ent)
+                    return ent ~= ply
+                end
+            })
+            if DEBUG then
+                realPos[1] = targetPos
+                realPos[2] = targetPos + Aimbot.Target:EyeAngles():Forward() * 1000
+                predPos[1] = predictedShootPos
+                predPos[2] = targetPos
+            end
+            if tr.Entity ~= Aimbot.Target and tr_pred.Entity == Aimbot.Target then
+                lagTicks = HvH.LagFactor
+                ded.SetBSendPacket(false)
+            else
+                ded.SetBSendPacket(true)
+            end
+        else
+            ded.SetBSendPacket(true)
+        end
+    end
+    if HvH.AntiAim.Enabled and not cmd:KeyDown(IN_ATTACK) and not cmd:KeyDown(IN_USE) and IsValid(ply) and ply:Alive() then
+        local view = cmd:GetViewAngles()
+        
+        if HvH.AntiAim.Yaw == "Backward" then
+            view.y = (view.y + 180) % 360
+            cmd:SetViewAngles(view)
+            Aimbot.Angle = Angle(0,180,0)
+        end
+    end
+end)
