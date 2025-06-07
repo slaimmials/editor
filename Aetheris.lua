@@ -1,4 +1,21 @@
-local DEBUG = true
+local DEBUG = false
+local DEBUG_SUB = {hooks = {}}
+function DEBUG_SUB:Connect(Name, Desc, Func)
+    DEBUG_SUB.hooks[Desc] = {Name,Func}
+end
+concommand.Add("AE_DEBUG", function()
+    DEBUG = not DEBUG
+    if DEBUG then
+        for desc,data in pairs(DEBUG_SUB.hooks) do
+            hook.Add(data[1], desc, data[2])
+        end
+    else
+        for desc,data in pairs(DEBUG_SUB.hooks) do
+            hook.Remove(data[1], desc)
+        end
+    end
+    print("[Aetheris] Debug "..(DEBUG and "Enabled" or "Disabled"))
+end)
 
 local floor = math.floor
 local abs = math.abs
@@ -21,7 +38,7 @@ local moduleInstalled = pcall(function()
     require("zxcmodule")
 end)
 if not moduleInstalled then
-    error("[Aetheris] please install module")
+    error("[Aetheris] Please install module")
     return;
 end
 
@@ -79,8 +96,9 @@ surface.CreateFont("ESP_Big", {
 	antialias = true,
 })
 local lastFrameX = 10
-function LibUI:NewFrame(name, title)
+function LibUI:NewFrame(name, title, sameLine)
     title = title or name
+    sameLine = sameLine or false
 	local frame = {
 		Name = name,
 		VGUI = {
@@ -91,13 +109,20 @@ function LibUI:NewFrame(name, title)
 		},
 	}
 
+    local yLine = 10
+    if sameLine then
+        local xSize, ySize = self.CurrentFrame.VGUI.Frame:GetSize()
+        lastFrameX = lastFrameX-xSize-10
+        yLine = 10 + ySize + 10
+    end
+
 	frame.VGUI.Frame:SetTitle("")
     frame.VGUI.Frame:ShowCloseButton(false)
 	frame.VGUI.Frame:SetDraggable(true)
 	frame.VGUI.Frame:SetSize(150, 0)
 	frame.VGUI.Frame:Center()
 	frame.VGUI.Frame:SetVisible(false)
-    frame.VGUI.Frame:SetPos(lastFrameX, 10)
+    frame.VGUI.Frame:SetPos(lastFrameX, yLine)
     --if popup then
         frame.VGUI.Frame:MakePopup()
     --end
@@ -140,7 +165,6 @@ end
 
 function LibUI:HideFrame(name)
 	if self.Frames[name] and self.Frames[name].VGUI.Frame then
-        print("hiding: "..name)
 		self.Frames[name].VGUI.Frame:SetVisible(false)
 	end
 end
@@ -179,39 +203,264 @@ function LibUI:Label(text)
 	return lbl
 end
 
-function LibUI:CheckBox(text, onChange)
-	if not self.CurrentFrame then
-		return
-	end
-	local panel = vgui.Create("DPanel", self.CurrentFrame.VGUI.Frame)
-	panel:SetBackgroundColor(Color(0, 0, 0, 0))
+function LibUI:CheckBox(text, onChange, bindable)
+    if not self.CurrentFrame then return end
 
-	local chk = vgui.Create("DCheckBox", panel)
-	chk:SetPos(0, 2)
-    function chk:Paint(w,h)
+    local panel = vgui.Create("DPanel", self.CurrentFrame.VGUI.Frame)
+    panel:SetBackgroundColor(Color(0,0,0,0))
+
+    local chk = vgui.Create("DCheckBox", panel)
+    chk:SetPos(0, 2)
+    function chk:Paint(w, h)
         draw.RoundedBox(0, 0, 0, w, h, Color(40, 40, 40))
         if chk:GetChecked() then
             surface_SetDrawColor(96, 180, 100)
         else
-            surface_SetDrawColor(60,60,60)
+            surface_SetDrawColor(60, 60, 60)
         end
-        surface_DrawRect(3/2,3/2,w-3,h-3)
+        surface_DrawRect(2, 2, w - 4, h - 4)
     end
-	local lbl = vgui.Create("DLabel", panel)
-	lbl:SetText(text)
+
+    local lbl = vgui.Create("DLabel", panel)
     lbl:SetFont("ESP_SemiBig")
-	lbl:SetPos(20, 0)
-	lbl:SizeToContents()
+    lbl:SetText(text)
+    lbl:SetTextColor(Color(255,255,255))
+    lbl:SizeToContents()
+    lbl:SetPos(20, 0)
 
-	panel:SetSize(100, 20)
-	if onChange then
-		chk.OnChange = function(_, val)
-			onChange(val)
-		end
-	end
+    local bindInfo = { key = nil, mode = "Toggle" }
+    local gear
 
-	self.CurrentFrame.VGUI:AddElement(panel, 20)
-	return chk
+    if bindable then
+        local gearMat = Material("icon16/cog.png")
+        gear = vgui.Create("DButton", panel)
+        gear:SetText("")
+        gear:SetSize(20, 20)
+        gear:SetPos(lbl.x + lbl:GetWide() + 5, 0)
+        gear.Paint = function(self, w, h)
+            draw.RoundedBox(0, 0, 0, w, h, Color(60, 60, 60))
+            surface.SetDrawColor(255, 255, 255, 255)
+            surface.SetMaterial(gearMat)
+            surface.DrawTexturedRect(2, 2, w-4, h-4)
+        end
+
+        local function closePopup()
+            if IsValid(panel._bindPopup) then
+                panel._bindPopup:Remove()
+                panel._bindPopup = nil
+            end
+            if panel._popupCatcher then
+                panel._popupCatcher:Remove()
+                panel._popupCatcher = nil
+            end
+        end
+
+        local function openBindPopup()
+            if IsValid(panel._bindPopup) then
+                closePopup()
+                return
+            end
+
+            local btnW, btnH = 140, 28
+            local comboH = 20
+            local popupW = btnW + 20
+            local popupH = btnH + comboH + 25
+
+            local popupCatcher = vgui.Create("DPanel")
+            popupCatcher:SetDrawOnTop(true)
+            popupCatcher:SetPos(0, 0)
+            popupCatcher:SetSize(ScrW(), ScrH())
+            popupCatcher:SetAlpha(0)
+            popupCatcher:SetMouseInputEnabled(true)
+            function popupCatcher:Paint() end
+            function popupCatcher:OnMousePressed()
+                closePopup()
+            end
+            panel._popupCatcher = popupCatcher
+
+            local popup = vgui.Create("DFrame")
+            popup:SetTitle("")
+            popup:SetSize(popupW, popupH)
+            popup:ShowCloseButton(false)
+            popup:SetDraggable(false)
+            popup:SetDrawOnTop(true)
+            popup.Paint = function(_, w, h)
+                draw.RoundedBox(6, 0, 0, w, h, Color(50, 50, 50, 240))
+            end
+
+            local gx, gy = gear:LocalToScreen(0, gear:GetTall())
+            popup:SetPos(gx - 10, gy + 5)
+            popup:MakePopup()
+            panel._bindPopup = popup
+
+            local BGColor = Color(40,40,40)
+            local btnText = bindInfo.key and string.upper(bindInfo.key) or "click to bind"
+
+            local binderBtn = vgui.Create("DButton", popup)
+            binderBtn:SetText("")
+            binderBtn:SetSize(btnW, btnH)
+            binderBtn:SetPos(10, 10)
+            binderBtn.Paint = function(self, w, h)
+                BGColor = BGColor:Lerp(Color(40,40,40), 0.05)
+                if self:IsHovered() then
+                    BGColor = BGColor:Lerp(Color(60,60,60), 0.2)
+                end
+                surface.SetDrawColor(BGColor.r, BGColor.g, BGColor.b)
+                surface.DrawRect(0,0,w,h)
+                draw.SimpleText(btnText, "ESP_SemiBig", w/2, h/2, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+            end
+
+            local isBinding = false
+            binderBtn.DoClick = function()
+                isBinding = true
+                btnText = "press any key"
+                binderBtn:InvalidateLayout()
+            end
+
+            local combo = vgui.Create("DComboBox", popup)
+            combo:SetPos(10, 10 + btnH + 4)
+            combo:SetSize(btnW, comboH)
+            combo:SetText("")
+            local ComboBGColor = Color(40,40,40)
+            function combo:Paint(w,h)
+                combo:SetText("")
+                ComboBGColor = ComboBGColor:Lerp(Color(40,40,40), 0.05)
+                surface.SetDrawColor(ComboBGColor.r, ComboBGColor.g, ComboBGColor.b)
+                surface.DrawRect(0,0,w,h)
+                local ctext = combo:GetSelected()
+                ctext = ctext or bindInfo.mode or "tf did you bind"
+                draw.SimpleText(ctext, "ESP_SemiBig", w/2, h/2, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+            end
+
+            combo.OnMenuOpened = function(self, menu)
+                menu.Paint = function(panel, w, h)
+                    draw.RoundedBox(0, 0, 0, w, h, Color(50, 50, 50, 255))
+                end
+                for _, child in pairs(menu:GetCanvas():GetChildren()) do
+                    if child:GetName() == "DMenuOption" then
+                        child.Paint = function(option, w, h)
+                            option:SetTextColor({255,255,255,0})
+                            if option.Hovered then
+                                draw.RoundedBox(0, 0, 0, w, h, Color(96, 180, 100, 255))
+                            else
+                                draw.RoundedBox(0, 0, 0, w, h, Color(50, 50, 50, 255))
+                            end
+                            draw.SimpleText(option:GetText(), "ESP_SemiBig", 10, h/2, Color(255,255,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+                        end
+                    end
+                end
+            end
+
+            combo:AddChoice("Toggle")
+            combo:AddChoice("Hold")
+            combo:SetValue(bindInfo.mode or "Toggle")
+            combo.OnSelect = function(_, idx, value, data)
+                bindInfo.mode = value
+            end
+
+            local isBinding = false
+            local pressedKeys = {}
+
+            binderBtn.DoClick = function()
+                isBinding = true
+                btnText = "press any key"
+                binderBtn:InvalidateLayout()
+                pressedKeys = {}
+                for i = 1, 159 do
+                    if input.IsKeyDown(i) then
+                        pressedKeys[i] = true
+                    end
+                end
+                for i = MOUSE_LEFT, MOUSE_LAST do
+                    if input.IsMouseDown(i) then
+                        pressedKeys[i] = true
+                    end
+                end
+            end
+
+            popup.Think = function()
+                if isBinding then
+                    for i = 1, 159 do
+                        if input.IsKeyDown(i) and not pressedKeys[i] then
+                            local name = input.GetKeyName(i)
+                            if name then
+                                bindInfo.key = name
+                                isBinding = false
+                                btnText = string.upper(name)
+                                binderBtn:InvalidateLayout()
+                                surface.PlaySound("buttons/button15.wav")
+                                return
+                            end
+                        end
+                    end
+                    for i = MOUSE_LEFT, MOUSE_LAST do
+                        if input.IsMouseDown(i) and not pressedKeys[i] then
+                            local name = input.GetKeyName(i)
+                            if name then
+                                bindInfo.key = name
+                                isBinding = false
+                                btnText = string.upper(name)
+                                binderBtn:InvalidateLayout()
+                                surface.PlaySound("buttons/button15.wav")
+                                return
+                            end
+                        end
+                    end
+                end
+            end
+
+            function popup:OnRemove()
+                closePopup()
+            end
+        end
+
+        gear.DoClick = openBindPopup
+    end
+
+    hook.Add("Think", panel, function()
+        if not bindInfo.key then return end
+        local code = input.GetKeyCode(bindInfo.key)
+        local mouseCode
+        for i = MOUSE_LEFT, MOUSE_LAST do
+            if bindInfo.key == input.GetKeyName(i) then
+                code = nil
+                mouseCode = i
+                break
+            end
+        end
+
+        if bindInfo.mode == "Toggle" then
+            local pressed = code and input.IsKeyDown(code) or (mouseCode and input.IsMouseDown(mouseCode))
+            if pressed then
+                if not panel._bindPressed then
+                    chk:SetChecked(not chk:GetChecked())
+                    chk.OnChange(chk, not held)
+                    panel._bindPressed = true
+                end
+            else
+                panel._bindPressed = false
+            end
+        elseif bindInfo.mode == "Hold" then
+            local held = code and input.IsKeyDown(code) or (mouseCode and input.IsMouseDown(mouseCode))
+            chk:SetChecked(held)
+            chk.OnChange(chk, held)
+        end
+    end)
+
+    local totalWidth = lbl.x + lbl:GetWide()
+    if gear then
+        totalWidth = gear.x + gear:GetWide()
+    end
+    panel:SetSize(totalWidth + 10, 20)
+
+    if onChange then
+        chk.OnChange = function(_, val)
+            onChange(val)
+        end
+    end
+
+    self.CurrentFrame.VGUI:AddElement(panel, 20)
+    return chk, function() return bindInfo.key, bindInfo.mode end
 end
 
 function LibUI:Slider(text, min, max, defaultValue, onChange)
@@ -238,7 +487,15 @@ function LibUI:Slider(text, min, max, defaultValue, onChange)
 
         local fillWidth = (w - 6) * math.Clamp((self.Value - min) / (max - min), 0, 1)
         draw.RoundedBox(0, 3, 3, fillWidth, h - 6, Color(96, 180, 100))
-        draw.SimpleText(tostring(math.Round(self.Value or defaultValue, 1)), "ESP_SemiBig", fillWidth + 5, h/2, Color(255, 255, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+        surface.SetFont("ESP_SemiBig")
+        local textW, textH = surface.GetTextSize(tostring(math.Round(self.Value or defaultValue, 1)))
+        local align = TEXT_ALIGN_LEFT
+        local margin = 5
+        if w-(fillWidth+margin) < textW then
+            align = TEXT_ALIGN_RIGHT
+            margin = 0
+        end
+        draw.SimpleText(tostring(math.Round(self.Value or defaultValue, 1)), "ESP_SemiBig", fillWidth + margin, h/2, Color(255, 255, 255), align, TEXT_ALIGN_CENTER)
     end
 
     local slider = vgui.Create("DNumSlider", sliderPanel)
@@ -289,13 +546,44 @@ function LibUI:DropDown(text, options, defaultValue, onChange)
     
     local combo = vgui.Create("DComboBox", panel)
     combo:SetPos(0, 20)
-    combo:SetSize(190, 20)
+    combo:SetSize(140, 20)
+    combo:SetText("")
+    local BGColor = Color(40,40,40)
+    function combo:Paint(w,h)
+        combo:SetText("")
+        BGColor = BGColor:Lerp(Color(40,40,40), 0.05)
+        surface.SetDrawColor(BGColor.r, BGColor.g, BGColor.b)
+        surface.DrawRect(0,0,w,h)
+        local text = combo:GetSelected()
+        text = text or defaultValue or "Nothing"
+        draw.SimpleText(text, "ESP_SemiBig", w/2, h/2, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+    end
     
+    combo.OnMenuOpened = function(self, menu)
+        menu.Paint = function(panel, w, h)
+            draw.RoundedBox(0, 0, 0, w, h, Color(50, 50, 50, 255))
+        end
+
+        for _, child in pairs(menu:GetCanvas():GetChildren()) do
+            if child:GetName() == "DMenuOption" then
+                child.Paint = function(option, w, h)
+                    option:SetTextColor({255,255,255,0})
+                    if option.Hovered then
+                        draw.RoundedBox(0, 0, 0, w, h, Color(96, 180, 100, 255))
+                    else
+                        draw.RoundedBox(0, 0, 0, w, h, Color(50, 50, 50, 255))
+                    end
+                    draw.SimpleText(option:GetText(), "ESP_SemiBig", 10, h/2, Color(255,255,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+                end
+            end
+        end
+    end
+
     for key, value in pairs(options) do
-        if type(options) == "table" and #options > 0 then
-            combo:AddChoice(value)
+        if type(value) == "table" then
+            combo:AddChoice(value["text"], nil, false, value["icon"])
         else
-            combo:AddChoice(value, key)
+            combo:AddChoice(value)
         end
     end
     
@@ -315,166 +603,100 @@ end
 
 function LibUI:MultiDropDown(text, options, defaultSelected, onChange)
     if not self.CurrentFrame then return end
-    
+
     local panel = vgui.Create("DPanel", self.CurrentFrame.VGUI.Frame)
     panel:SetBackgroundColor(Color(0,0,0,0))
-    panel:SetZPos(32767)
-    
+
     local lbl = vgui.Create("DLabel", panel)
     lbl:SetFont("ESP_SemiBig")
     lbl:SetText(text)
     lbl:SetTextColor(Color(255,255,255))
     lbl:SizeToContents()
     lbl:SetPos(0, 0)
-    local bText = "Выбрать..."
-    local dropButton = vgui.Create("DButton", panel)
-    dropButton:SetText("")
-    dropButton:SetPos(0, 20)
-    dropButton:SetSize(140, 20)
+
+    local btn = vgui.Create("DButton", panel)
+    btn:SetPos(0, 20)
+    btn:SetSize(140, 20)
+    btn:SetText("")
     local BGColor = Color(40,40,40)
-    function dropButton:Paint(w,h)
+    local selected = {}
+    for key,_ in pairs(options) do selected[key] = false end
+    if defaultSelected then for _,k in ipairs(defaultSelected) do selected[k] = true end end
+
+    local function getDisplayText()
+        local sel = {}
+        for k,v in pairs(selected) do if v then table.insert(sel, options[k]) end end
+        if #sel == 0 then return "Nothing"
+        elseif #sel <= 2 then return table.concat(sel, ", ")
+        else return "Выбрано: " .. #sel end
+    end
+
+    function btn:Paint(w,h)
         BGColor = BGColor:Lerp(Color(40,40,40), 0.05)
         surface.SetDrawColor(BGColor.r, BGColor.g, BGColor.b)
         surface.DrawRect(0,0,w,h)
-        draw.SimpleText(bText, "ESP_SemiBig", w/2, h/2, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+        draw.SimpleText(getDisplayText(), "ESP_SemiBig", w/2, h/2, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
     end
-        
-    local selectedOptions = {}
-    
-    for key in pairs(options) do
-        selectedOptions[key] = false
-    end
-    
-    if defaultSelected then
-        if type(defaultSelected) == "table" then
-            for _, key in ipairs(defaultSelected) do
-                if selectedOptions[key] ~= nil then
-                    selectedOptions[key] = true
-                end
-            end
-        elseif selectedOptions[tostring(defaultSelected)] ~= nil then
-            selectedOptions[tostring(defaultSelected)] = true
+    local menuOpened = false
+    function btn:DoClick()
+        local menu = DermaMenu()
+        menu:SetMinimumWidth(btn:GetWide())
+        menu.Paint = function(panel, w, h)
+            draw.RoundedBox(0, 0, 0, w, h, Color(50, 50, 50, 255))
         end
-    end
-    
-    local menuPanel
-    local function UpdateButtonText()
-        local count = 0
-        for _, state in pairs(selectedOptions) do
-            if state then count = count + 1 end
-        end
-        bText = count > 0 and ("Выбрано: "..count) or "Выбрать..."
-    end
-    
-    dropButton.DoClick = function()
-        BGColor = Color(96,180,100)
-        if IsValid(menuPanel) then 
-            menuPanel:Remove()
-            return 
-        end
-        
-        menuPanel = vgui.Create("DFrame")
-        menuPanel:SetSize(150, 150)
-        menuPanel:SetPos(dropButton:LocalToScreen(0, dropButton:GetTall()))
-        menuPanel:SetTitle("")
-        menuPanel:ShowCloseButton(false)
-        menuPanel:SetDraggable(false)
-        menuPanel:MakePopup()
-        menuPanel:SetZPos(32767)
-        
-        local lbl = vgui.Create("DLabel", menuPanel)
-        lbl:SetFont("ESP_SemiBig")
-        lbl:SetText("Select options:")
-        lbl:SetPos(5, 5)
-        lbl:SizeToContents()
-
-        function menuPanel:Paint(w, h)
-            draw.RoundedBox(4, 0, 0, w, h, Color(40, 40, 40, 240))
-        end
-        
-        local scroll = vgui.Create("DScrollPanel", menuPanel)
-        scroll:Dock(FILL)
-        
-        local list = vgui.Create("DListLayout", scroll)
-        list:Dock(FILL)
-        
         for key, value in pairs(options) do
-            local itemPanel = vgui.Create("DPanel", list)
-            itemPanel:SetTall(25)
-            itemPanel:SetBackgroundColor(Color(0,0,0,0))
-            
-            local cb = vgui.Create("DCheckBox", itemPanel)
-            cb:SetPos(5, 5)
-            cb:SetChecked(selectedOptions[key])
-            
-            local lbl = vgui.Create("DLabel", itemPanel)
-            lbl:SetFont("ESP_SemiBig")
-            lbl:SetText(value)
-            lbl:SetPos(30, 5)
-            lbl:SizeToContents()
-            
-            cb.OnChange = function(_, val)
-                selectedOptions[key] = val
-                UpdateButtonText()
-                
-                if onChange then
-                    onChange(selectedOptions)
+            local opt = menu:AddOption("", function() end)
+            opt:SetText("")
+            opt.Paint = function(option, w, h)
+                if selected[key] then
+                    draw.RoundedBox(0, 0, 0, w, h, Color(96, 180, 100, 255))
+                elseif option.Hovered then
+                    draw.RoundedBox(0, 0, 0, w, h, Color(70, 70, 70, 255))
+                else
+                    draw.RoundedBox(0, 0, 0, w, h, Color(50, 50, 50, 255))
+                end
+                draw.SimpleText(value, "ESP_SemiBig", 10, h/2, Color(255,255,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+            end
+            opt.OnMousePressed = function(option, mcode)
+                if mcode == MOUSE_LEFT then
+                    selected[key] = not selected[key]
+                    btn:InvalidateLayout()
+                    menu:InvalidateLayout()
+                    if onChange then
+                        local arr = {}
+                        for k,v in pairs(selected) do if v then table.insert(arr, k) end end
+                        onChange(arr)
+                    end
                 end
             end
         end
-        
-        menuPanel.OnFocusChanged = function(_, gained)
-            if not gained and not menuPanel:IsHovered() then
-                menuPanel:Remove()
-            end
+        if menuOpened then
+            menu:Hide()
+            menuOpened = false
+        else
+            menu:Open()
+            menuOpened = true
         end
         
-        function menuPanel:Think()
-            if not self:HasFocus() and not self:IsHovered() and not dropButton:IsHovered() then
-                self:Remove()
-            end
-        end
+        menu:SetPos(btn:LocalToScreen(0, btn:GetTall()))
     end
-    
-    UpdateButtonText()
-    
+    menu.OnRemove = function(self)
+        menuOpened = false
+    end
     self.CurrentFrame.VGUI:AddElement(panel, 45)
 
-    return {
-        GetSelected = function()
-            return table.Copy(selectedOptions)
-        end,
-        
-        SetSelected = function(self, newSelected)
-            for key in pairs(selectedOptions) do
-                if newSelected[key] ~= nil then
-                    selectedOptions[key] = newSelected[key]
-                end
-            end
-            UpdateButtonText()
-        end,
-        
-        SetOptionState = function(self, key, state)
-            if selectedOptions[key] ~= nil then
-                selectedOptions[key] = state
-                UpdateButtonText()
-            end
-        end,
-        
-        AddOption = function(self, key, value, defaultState)
-            options[key] = value
-            selectedOptions[key] = defaultState or false
-            UpdateButtonText()
-        end,
-        
-        RemoveOption = function(self, key)
-            options[key] = nil
-            selectedOptions[key] = nil
-            UpdateButtonText()
-        end,
-        
-        Panel = panel
-    }
+    function btn:GetSelectedKeys()
+        local arr = {}
+        for k,v in pairs(selected) do if v then table.insert(arr, k) end end
+        return arr
+    end
+    function btn:SetSelectedKeys(tab)
+        for k,_ in pairs(selected) do selected[k]=false end
+        for _,k in ipairs(tab) do selected[k]=true end
+        btn:InvalidateLayout()
+    end
+
+    return btn
 end
 ----------MAIN CODE-----------
 
@@ -488,6 +710,7 @@ local Aimbot = {
 	FOV = 6,
     Smoothness = 0,
 
+    Shooting = false,
 	Target = nil,
 	PredictTypes = {},
     Angle = Angle(0,0,0),
@@ -495,15 +718,21 @@ local Aimbot = {
 
 local Visuals = {
 	Wallhack = false,
-	Box = false,
+    Nametags = false,
+    Dormant = false,
 	Health = false,
-	Nametags = false,
-    Ammo = false,
-	Dormant = false,
     Weapon = false,
+    Chams = false,
+    Ammo = false,
+    Box = false,
 
     NametagArea = ScrH()/6,
-    Radar = { Enabled = false },
+    Radar = { 
+        Enabled = false,
+        Viewangles = false,
+        NearInfo = false,
+        Size = 200,
+    },
 }
 
 local BHopSettings = {
@@ -535,24 +764,32 @@ local Misc = {
         Y = 50, 
         Z = 50 
     },
-    FOV = 90,
+    FOV = GetConVar("fov_desired"):GetFloat(),
     Taunts = false,
 }
 
 local HvH = {
     LagOnPeek = false,
+    OverLOP = false,
     AntiAim = {
         Enabled = false,
         Yaw = "Forward",
         Pitch = "Viewangles",
-        lastAntiAimYaw = 0
+        RealAngles = Angle(0,0,0),
+        YawDrop = nil,
+
+    },
+    Resolver = {
+        Enabled = false,
+        Yaw = 0,
+        Pitch = 90
     },
 }
 
 --------UI STRUCTING----------
 
 LibUI:NewFrame("AIMBOT")
-LibUI:CheckBox("Enable", function(val)Aimbot.Enabled = val end)
+LibUI:CheckBox("Enable", function(val)Aimbot.Enabled = val end, true)
 --LibUI:CheckBox("Auto penetration", function(val)Aimbot.AutoPenetration = val end) --TODO
 LibUI:CheckBox("Team check", function(val)Aimbot.TeamCheck = val end)
 LibUI:CheckBox("Wall check", function(val)Aimbot.WallCheck = val end)
@@ -568,41 +805,38 @@ end)
 LibUI:Slider("FOV", 1, 180, Aimbot.FOV, function(val)Aimbot.FOV = val end)
 LibUI:Slider("Smoothness", 0, 1, Aimbot.Smoothness, function(val)Aimbot.Smoothness = val end)
 LibUI:CheckBox("No vrecoil", function(val)Aimbot.VRecoil = val end)
---LibUI:CheckBox("No recoil", function(val)Aimbot.Recoil = val end)
---LibUI:CheckBox("No spread", function(val)Aimbot.Spread = val end)
+--LibUI:CheckBox("No recoil", function(val)Aimbot.Recoil = val end) --TODO
+--LibUI:CheckBox("No spread", function(val)Aimbot.Spread = val end) --TODO
 ----
 LibUI:NewFrame("VISUALS")
-LibUI:CheckBox("Wallhack", function(val)Visuals.Wallhack = val end)
+LibUI:CheckBox("Wallhack", function(val) Visuals.Wallhack = val end)
 LibUI:CheckBox("Nametags", function(val) Visuals.Nametags = val end)
-LibUI:CheckBox("Dormant", function(val)Visuals.Dormant = val end)
-LibUI:CheckBox("Weapon", function(val) Visuals.Weapon = val end) --TODO
-LibUI:CheckBox("Health", function(val) Visuals.Health = val end)
---LibUI:CheckBox("Chams", function(val)Visuals.Chams = val end) --TODO
+LibUI:CheckBox("Dormant", function(val) Visuals.Dormant = val end)
+LibUI:CheckBox("Weapon", function(val) Visuals.Weapon = val end)
+LibUI:CheckBox("Chams",  function(val)  Visuals.Chams = val end)
+LibUI:CheckBox("Health",function(val) Visuals.Health = val end)
 LibUI:CheckBox("Ammo", function(val) Visuals.Ammo = val end)
 LibUI:CheckBox("Box", function(val)Visuals.Box = val end)
 LibUI:Slider("Nametag area", 0, ScrW(), ScrH()/6, function(val) Visuals.NametagArea = val end)
-LibUI:CheckBox("Radar", function(val) Visuals.Radar.Enabled = val end)
+----
+LibUI:NewFrame("RADAR", nil, true)
+LibUI:CheckBox("Enabled", function(val) Visuals.Radar.Enabled = val end)
+LibUI:CheckBox("Nearest info", function(val) Visuals.Radar.NearInfo = val end)
+LibUI:CheckBox("Viewangles", function(val) Visuals.Radar.Viewangles = val end)
+LibUI:Slider("Size", 160, 400, Visuals.Radar.Size, function(val) Visuals.Radar.Size = val end)
 ----
 LibUI:NewFrame("MISCELLANEOUS") 
 LibUI:Button("Hide menu", function()
-    LibUI:HideFrame("Aimbot")
-    LibUI:HideFrame("Visuals")
-    LibUI:HideFrame("Miscellaneous")
+    for name in pairs(LibUI.Frames) do
+        LibUI:HideFrame(name)
+    end
 end)
-LibUI:CheckBox("Enable BHop", function(val) BHopSettings.Enabled = val end)
-LibUI:CheckBox("Autostrafe", function(val) BHopSettings.AutoStrafe = val end)
-LibUI:CheckBox("Thirdperson", function(val) Misc.Thirdperson.Enabled = val end)
-LibUI:Slider("Distance", 0, 250, Misc.Thirdperson.Distance, function(val) Misc.Thirdperson.Distance = val end)
 LibUI:CheckBox("Disable taunts", function(val) Misc.Taunts = val end)
---LibUI:CheckBox("Resolver", function(val) Misc.Resolver.Enabled = val end) --TODO
---LibUI:Slider("Factor", 0, 360, 0, function(val) Misc.Resolver.Factor = val end) --TODO
+LibUI:CheckBox("Enable BHop",function(val) BHopSettings.Enabled = val end)
+LibUI:CheckBox("Autostrafe", function(val) BHopSettings.AutoStrafe = val end)
 --LibUI:CheckBox("Free camera", function(val) Misc.FreeCamera = val end) --TODO
-LibUI:Slider("FOV", 0, 360, Misc.FOV, function(val) Misc.FOV = val end)
-LibUI:Slider("Viewmodel X", 0, 100, Misc.Viewmodel.X, function(val) Misc.Viewmodel.X = val end)
-LibUI:Slider("Viewmodel Y", 0, 100, Misc.Viewmodel.Y, function(val) Misc.Viewmodel.Y = val end)
-LibUI:Slider("Viewmodel Z", 0, 100, Misc.Viewmodel.Z, function(val) Misc.Viewmodel.Z = val end)
 ----
-LibUI:NewFrame("OBSERVER") 
+LibUI:NewFrame("OBSERVER",nil,true) 
 LibUI:CheckBox("Enabled", function(val) Misc.Observer.Enabled = val end)
 local observerTargetList = LibUI:DropDown("Target", {
 }, "", function(val)
@@ -626,21 +860,50 @@ end)
 LibUI:Slider("Distance ", 0, 250, Misc.Observer.Distance, function(val) Misc.Observer.Distance = val end)
 ----
 LibUI:NewFrame("HVH") 
-LibUI:CheckBox("Lag on peek", function(val)HvH.LagOnPeek = val end)
+LibUI:CheckBox("Lag on peek", function(val)HvH.LagOnPeek = val end,true)
 LibUI:Slider("lag factor", 30, 90, 70, function(val)HvH.LagFactor = val end)
---[[LibUI:CheckBox("Anti aim", function(val)HvH.AntiAim.Enabled = val end)
-LibUI:DropDown("Yaw", {
+LibUI:CheckBox("Overlag", function(val)HvH.OverLOP = val end)
+LibUI:CheckBox("Anti aim", function(val)HvH.AntiAim.Enabled = val end)
+HvH.AntiAim.YawDrop = LibUI:DropDown("Yaw", {
     "Left",
     "Right",
+    "Sideways",
     "Forward",
     "Backward",
-}, "Forward", function(val)
+}, HvH.AntiAim.Yaw, function(val)
     HvH.AntiAim.Yaw = val
-end)]]
---LibUI:ShowFrame("Aimbot")
---LibUI:ShowFrame("Visuals")
---LibUI:ShowFrame("Miscellaneous")
-
+end)
+LibUI:DropDown("Pitch", {
+    "Viewangles",
+    "Forward",
+    "Up",
+    "Down",
+}, HvH.AntiAim.Pitch, function(val)
+    HvH.AntiAim.Pitch = val
+end)
+LibUI:CheckBox("Resolver", function(val) HvH.Resolver.Enabled = val end)
+LibUI:Slider("Yaw", 0, 360, HvH.Resolver.Yaw, function(val) HvH.Resolver.Yaw = val end)
+--LibUI:Slider("Pitch", 0, 180, HvH.Resolver.Pitch, function(val) HvH.Resolver.Pitch = val end) --TODO
+----
+LibUI:NewFrame("VIEW")
+LibUI:CheckBox("Thirdperson", function(val) Misc.Thirdperson.Enabled = val end)
+LibUI:Slider("Distance", 0, 250, Misc.Thirdperson.Distance, function(val) Misc.Thirdperson.Distance = val end)
+LibUI:Slider("FOV", 0, 360, Misc.FOV, function(val) Misc.FOV = val end)
+LibUI:Slider("Viewmodel X", 0, 100, Misc.Viewmodel.X, function(val) Misc.Viewmodel.X = val end)
+LibUI:Slider("Viewmodel Y", 0, 100, Misc.Viewmodel.Y, function(val) Misc.Viewmodel.Y = val end)
+LibUI:Slider("Viewmodel Z", 0, 100, Misc.Viewmodel.Z, function(val) Misc.Viewmodel.Z = val end)
+--[[--
+LibUI:NewFrame("CONFIG")
+Config.Drop = LibUI:DropDown("Yaw", {
+    "Left",
+    "Right",
+    "Sideways",
+    "Forward",
+    "Backward",
+}, HvH.AntiAim.Yaw, function(val)
+    HvH.AntiAim.Yaw = val
+end)
+--]]--
 ----------FUNCTIONS-----------
 
 function distance(x1, y1, x2, y2)
@@ -690,36 +953,38 @@ hook.Add("Think", "BM_Clients_Key", function()
 	if (timeout or 0) < CurTime() and input.IsKeyDown(KEY_DELETE) then
 		timeout = CurTime() + 0.3
 		if LibUI.CurrentFrame.VGUI.Frame:IsVisible() then
-			LibUI:HideFrame("AIMBOT")
-            LibUI:HideFrame("VISUALS")
-            LibUI:HideFrame("MISCELLANEOUS")
-            LibUI:HideFrame("HVH")
-            LibUI:HideFrame("OBSERVER")
+            for name in pairs(LibUI.Frames) do
+                LibUI:HideFrame(name)
+            end
 		else
-			LibUI:ShowFrame("AIMBOT")
-            LibUI:ShowFrame("VISUALS")
-            LibUI:ShowFrame("MISCELLANEOUS")
-            LibUI:ShowFrame("HVH")
-            LibUI:ShowFrame("OBSERVER")
+            for name in pairs(LibUI.Frames) do
+                LibUI:ShowFrame(name)
+            end
 		end
 	end
 end)
 
 local resetView = false
 hook.Add("CreateMove", "Aimbot", function(cmd)
-    if Aimbot.Enabled and not input.IsMouseDown(MOUSE_RIGHT) and not resetView then
+    if Aimbot.Enabled and not resetView and not HvH.AntiAim.Enabled then
         resetView = true
         local view = cmd:GetViewAngles()
         cmd:SetViewAngles(view - Aimbot.Angle)
+        Aimbot.Angle = Angle(0,0,0)
+        return
     end
-    if not Aimbot.Enabled or not input.IsMouseDown(MOUSE_RIGHT) then 
+    if (not Aimbot.Shooting or not Aimbot.Enabled) and HvH.AntiAim.Enabled and not resetView then 
+        resetView = true
+        local view = cmd:GetViewAngles()
+        cmd:SetViewAngles(view - Aimbot.Angle)
         Aimbot.Angle = Angle(0,0,0)
         return
     end
     resetView = false
+
     local lplr = LocalPlayer()
     local cameraPos = lplr:GetShootPos()
-    local cameraAng = lplr:GetAimVector():Angle()
+    local cameraAng = cmd:GetViewAngles() - Aimbot.Angle
     local cameraForward = cameraAng:Forward()
     
     local bestDelta = Aimbot.FOV
@@ -757,7 +1022,7 @@ hook.Add("CreateMove", "Aimbot", function(cmd)
 
 	Aimbot.Target = bestTarget
 
-	if IsValid(Aimbot.Target) and not Aimbot.Target:IsDormant() then
+	if IsValid(Aimbot.Target) and not Aimbot.Target:IsDormant() and Aimbot.Enabled then
         local boneIndex = Aimbot.Target:LookupBone("ValveBiped.Bip01_Head1")
         local targetPos = (boneIndex and Aimbot.Target:GetBonePosition(boneIndex)) or Aimbot.Target:EyePos()
         if targetPos then
@@ -800,7 +1065,7 @@ hook.Add("CreateMove", "Aimbot", function(cmd)
                 0
             ))
         end
-        if cmd:KeyDown(IN_ATTACK) then
+        if cmd:KeyDown(IN_ATTACK) or not Aimbot.Silent then
             doAim()
         end
 
@@ -819,8 +1084,11 @@ hook.Add("CreateMove", "Aimbot", function(cmd)
             })
             
             if trace.Hit and trace.Entity == Aimbot.Target then
+                Aimbot.Shooting = true
                 doAim()
                 cmd:SetButtons(bit.bor(cmd:GetButtons(), IN_ATTACK))
+            else
+                Aimbot.Shooting = false
             end
         end
     end
@@ -830,6 +1098,7 @@ local hudDrawingFake = {
 	fakeRT = GetRenderTarget("fakeRT"..rand_str(math.random(10,20)), ScrW(), ScrH()),
 	ENames = {
 		Wallhack = rand_str(7),
+        Radar = rand_str(7)
 	},
 }
 
@@ -840,13 +1109,14 @@ function DrawText(text, x, y, r, g, b, a)
 	surface.DrawText(text)
 
 	surface.SetTextColor(r or 255, g or 255, b or 255, a or 255)
-	surface.SetFont("ESP_Small")
-	surface.SetTextPos(x, y - 1)
-	surface.DrawText(text)
+	surface.SetFont("ESP_Small")            
+	surface.SetTextPos(x, y - 1)            
+	surface.DrawText(text)          
 end
 local a_debug = ""
 local screengrabWarn = 0
 
+------Wallhack-----
 hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
     surface_SetTextPos(ScrW()/2,ScrH()/2-100)
     surface_SetFont("ESP_Big")
@@ -989,9 +1259,45 @@ hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
         end
     end
 
+    if not surface.DrawFilledCircle then
+        function surface.DrawFilledCircle( x, y, radius )
+            local segments = 32
+            local verts = {}
+            table.insert(verts, {x = x, y = y})
+            for i = 0, segments do
+                local ang = math.rad((i / segments) * 360)
+                table.insert(verts, { x = x + math.cos(ang) * radius, y = y + math.sin(ang) * radius })
+            end
+            draw.NoTexture()
+            surface.DrawPoly(verts)
+        end
+    end
+end)
+
+------Chams-----
+hook.Add("RenderScreenspaceEffects", "PostProcessingExample", function()
+    if not Visuals.Wallhack then return end
+	cam.Start3D()
+        for _,ply in ipairs(player.GetAll()) do	
+            if IsValid(ply) and ply:Alive() and ply ~= LocalPlayer() then
+                if Visuals.Chams then
+                    cam.IgnoreZ(true)
+                    render.MaterialOverride(Material("models/wireframe"))
+                    render.SetColorModulation(0.302,0.267,0.941)
+                    ply:SetRenderMode(RENDERMODE_NORMAL)
+                    --v:SetColor(Color(0,0,0,0))
+                    ply:DrawModel()
+                end
+            end
+        end
+    cam.End3D()
+end )
+
+------Radar------
+hook.Add(hudDrawingFake.ENames.Radar .."HUDPaint", "Radar", function()
     if Visuals.Radar.Enabled then
         local screenW, screenH = ScrW(), ScrH()
-        local radarSize = 160
+        local radarSize = Visuals.Radar.Size
         local margin = 20
         local radarX = screenW - radarSize - margin 
         local radarY = margin
@@ -1037,10 +1343,12 @@ hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
         surface.DrawCircle(centerX, centerY, myRadius, colorRadar.r, colorRadar.g, colorRadar.b, colorRadar.a)
 
         local enemyRadius = math.floor(myRadius / 3)
-        for _, v in ipairs(player.GetAll()) do
-            if v == ply or not v:Alive() then continue end
+        local best = {dist = math.huge, ply = nil}
+        for _, plr in ipairs(player.GetAll()) do
+            if plr == ply or not plr:Alive() then continue end
 
-            local relPos = v:GetPos() - plyPos
+            local plrAng = plr:EyeAngles().y
+            local relPos = plr:GetPos() - plyPos
             local rx = relPos.x
             local ry = relPos.y
             local dist = math.sqrt(rx^2 + ry^2)
@@ -1056,24 +1364,25 @@ hook.Add(hudDrawingFake.ENames.Wallhack .."HUDPaint", "Wallhack", function()
             surface.SetDrawColor(colorEnemy)
             draw.NoTexture()
             surface.DrawFilledCircle(px, py, enemyRadius)
-        end
-    end
-
-    if not surface.DrawFilledCircle then
-        function surface.DrawFilledCircle( x, y, radius )
-            local segments = 32
-            local verts = {}
-            table.insert(verts, {x = x, y = y})
-            for i = 0, segments do
-                local ang = math.rad((i / segments) * 360)
-                table.insert(verts, { x = x + math.cos(ang) * radius, y = y + math.sin(ang) * radius })
+            if Visuals.Radar.Viewangles then
+                local rad = math.rad(plrAng)
+                surface.DrawLine(px, py, px + (radarSize / 5) * math.cos(rad), py + (radarSize / 5) * math.sin(rad))
             end
-            draw.NoTexture()
-            surface.DrawPoly(verts)
+            draw.DrawText(plr:GetName(), "ESP_Medium", px+enemyRadius+2, py-2, colorEnemy, TEXT_ALIGN_LEFT)
+            if dist < best["dist"] then
+                best["dist"] = dist
+                best["x"] = px
+                best["y"] = py
+                best["ply"] = plr
+            end 
+        end
+        if IsValid(best["ply"]) and Visuals.Radar.NearInfo then
+            draw.DrawText(tostring(best["ply"]:Health()).." HP\n", "ESP_Medium", best["x"]+enemyRadius+2, best["y"]+enemyRadius+2, colorEnemy, TEXT_ALIGN_LEFT)
         end
     end
 end)
 
+------Anti screengrab------
 if not _G._old_render_Capture then
     _G._old_render_Capture = render.Capture
 
@@ -1174,11 +1483,11 @@ hook.Add("CalcView", "ViewanglesFix", function(ply, pos, angles, fov)
     -------------------
 
     ----AIMBOT---
-    if not Aimbot.Silent or not Aimbot.Angle then
+    if not Aimbot.Angle then
         Aimbot.Angle = Angle(0,0,0)
     else
         Aimbot.Angle.y = Aimbot.Angle.y % 360
-        Aimbot.Angle.x = Aimbot.Angle.x % 360
+        Aimbot.Angle.p = Aimbot.Angle.p % 360
     end
     if Aimbot.VRecoil then
         angles = angles - LocalPlayer():GetViewPunchAngles()
@@ -1215,6 +1524,7 @@ hook.Add("CalcView", "ViewanglesFix", function(ply, pos, angles, fov)
         return view
     end
     ----------------
+    HvH.AntiAim.RealAngles = angles - Aimbot.Angle
     local view = {
         origin = pos,
         angles = angles - Aimbot.Angle,
@@ -1225,7 +1535,8 @@ hook.Add("CalcView", "ViewanglesFix", function(ply, pos, angles, fov)
 end)
 ----------Fix movement----------
 hook.Add("CreateMove", "Fix movement", function(cmd)
-    if Aimbot.Silent and Aimbot.Angle then
+    local ply = LocalPlayer()
+    if Aimbot.Angle and not ( ply:GetMoveType() == MOVETYPE_NOCLIP or ply:GetMoveType() == MOVETYPE_LADDER) then
         local realAng = cmd:GetViewAngles()
         local silentAng = realAng + Aimbot.Angle
         local deltaYaw = math.NormalizeAngle(silentAng.y - realAng.y)
@@ -1241,6 +1552,16 @@ hook.Add("CreateMove", "Fix movement", function(cmd)
 end)
 
 hook.Add("PrePlayerDraw", "preplayerdraw", function(ply)
+    if ply == LocalPlayer() then return end
+    if HvH.Resolver.Enabled then
+        local ang = ply:EyeAngles()
+        ang.y = ang.y + HvH.Resolver.Yaw
+        ply:SetRenderAngles(ang)
+        ply:SetNetworkAngles(ang)
+        ply:SetAngles(ang)
+        ply:InvalidateBoneCache()
+    end
+
     if Misc.Taunts then
         ply.ChatGestureWeight = 0
         for i = 0, 13 do
@@ -1302,6 +1623,7 @@ hook.Add("PlayerBindPress", "ObserverZoomControl", function(_, bind)
         return true
     end
 end)
+--[[]]
 hook.Add("CreateMove", "ObserverBlockMovement", function(cmd)
     if Misc.Observer.Enabled then 
         cmd:SetForwardMove(0)
@@ -1314,7 +1636,7 @@ hook.Add("CreateMove", "ObserverBlockMovement", function(cmd)
         return true
     end
 end)
---------------------------------
+--]]------------------------------
 hook.Add("CalcViewModelView", "MiscViewmodelOffset", function(wep, vm, oldPos, oldAng, pos, ang)
     if not Misc.Viewmodel then return end
     local offset = Vector(
@@ -1325,28 +1647,34 @@ hook.Add("CalcViewModelView", "MiscViewmodelOffset", function(wep, vm, oldPos, o
     pos = pos + ang:Forward() * offset.x + ang:Right() * offset.y + ang:Up() * offset.z
     return pos, ang - Aimbot.Angle
 end)
----------------------------------
-
+---------------HvH---------------
 local lagTicks = 0
 local lastMoving = false
 local predPos = {Vector(), Vector()}
 local realPos = {Vector(), Vector()}
-if DEBUG then
-    hook.Add("PostDrawTranslucentRenderables", "DrawRedBeamFromBotView", function()
-        render.SetMaterial(Material("cable/redlaser"))
-        render.DrawBeam(realPos[1], realPos[2], 5, 0, 1, Color(255, 0, 0))
-        render.SetMaterial(Material("cable/blue_elec"))
-        render.DrawBeam(predPos[1], predPos[2], 5, 0, 1, Color(0, 255, 0))
-    end)
-end
+DEBUG_SUB:Connect("PostDrawTranslucentRenderables", "DrawRedBeamFromBotView", function()
+    render.SetMaterial(Material("cable/redlaser"))
+    render.DrawBeam(realPos[1], realPos[2], 5, 0, 1, Color(255, 0, 0))
+    render.SetMaterial(Material("cable/blue_elec"))
+    render.DrawBeam(predPos[1], predPos[2], 5, 0, 1, Color(0, 255, 0))
+end)
 
 hook.Add("CreateMove", "HvH", function(cmd)
     local ply = LocalPlayer()
+    if not HvH.OverLOP and lagTicks > 0 then
+        ded.SetBSendPacket(false)
+        lagTicks = lagTicks - 1
+        if lagTicks == 0 then ded.SetBSendPacket(true) end
+        return
+    end
     if HvH.LagOnPeek and IsValid(ply) and ply:Alive() and IsValid(Aimbot.Target) then 
         local vel = ply:GetVelocity()
         local isMoving = vel:Length2D() > 10
 
-        if lagTicks > 0 then
+        if lagTicks > 0 and HvH.OverLOP then
+            --if cmd:KeyDown(IN_ATTACK) then
+                --ded.SetOutSequenceNr(ded.GetOutSequenceNr() + lagTicks/12)
+            --end
             ded.SetBSendPacket(false)
             lagTicks = lagTicks - 1
             if lagTicks == 0 then ded.SetBSendPacket(true) end
@@ -1375,7 +1703,7 @@ hook.Add("CreateMove", "HvH", function(cmd)
             })
             if DEBUG then
                 realPos[1] = targetPos
-                realPos[2] = targetPos + Aimbot.Target:EyeAngles():Forward() * 1000
+                realPos[2] = targetPos + Aimbot.Target:EyeAngles():Forward() * predictedShootPos:Distance(targetPos)
                 predPos[1] = predictedShootPos
                 predPos[2] = targetPos
             end
@@ -1389,13 +1717,120 @@ hook.Add("CreateMove", "HvH", function(cmd)
             ded.SetBSendPacket(true)
         end
     end
-    if HvH.AntiAim.Enabled and not cmd:KeyDown(IN_ATTACK) and not cmd:KeyDown(IN_USE) and IsValid(ply) and ply:Alive() then
-        local view = cmd:GetViewAngles()
-        
-        if HvH.AntiAim.Yaw == "Backward" then
-            view.y = (view.y + 180) % 360
-            cmd:SetViewAngles(view)
-            Aimbot.Angle = Angle(0,180,0)
+end)
+
+local resetAngle = false
+hook.Add("CreateMove", "HvH_AA", function(cmd)
+    local ply = LocalPlayer()
+    if HvH.AntiAim.Enabled and IsValid(ply) and ply:Alive() and 
+    not (cmd:KeyDown(IN_ATTACK) 
+    or cmd:KeyDown(IN_USE) 
+    or ply:GetMoveType() == MOVETYPE_NOCLIP 
+    or ply:GetMoveType() == MOVETYPE_LADDER) then
+        if resetAngle and Aimbot.Angle ~= Angle(0,0,0) then
+            return
         end
+        resetAngle = false
+        
+        local diffAngle = Angle(0,0,0)
+        local aaAng = cmd:GetViewAngles()
+        local realAng = HvH.AntiAim.RealAngles
+        local fakeAng = cmd:GetViewAngles()
+        local yDiff = math.AngleDifference(realAng.y, fakeAng.y)
+        local pDiff = fakeAng.p-realAng.p
+
+        if HvH.AntiAim.Yaw == "Backward" then
+            aaAng.y = fakeAng.y + 179-math.abs(yDiff)
+            diffAngle.y = aaAng.y - fakeAng.y
+        end
+        if HvH.AntiAim.Yaw == "Sideways" then
+            local ply = LocalPlayer()
+            local pos = ply:GetPos() + Vector(0, 0, 64)
+            local ang = realAng
+            ang.p = 0
+            ang.r = 0
+            local maxDist = 2000
+
+            local left_dir = (ang + Angle(0, 45, 0)):Forward()
+            local right_dir = (ang + Angle(0, -45, 0)):Forward()
+
+            local trace_left = util.TraceLine({
+                start = pos,
+                endpos = pos + left_dir * maxDist,
+                filter = ply
+            })
+            local trace_right = util.TraceLine({
+                start = pos,
+                endpos = pos + right_dir * maxDist,
+                filter = ply
+            })
+
+            -- шобы строго сбоку стены не детектило
+            local function isWallInSector(trace, dir, ang, maxAngle)
+                if not trace.Hit then return false end
+                local toWall = (trace.HitPos - pos):GetNormalized()
+                local forward = ang:Forward()
+                local dot = forward:Dot(toWall)
+                local angle = math.deg(math.acos(dot))
+                return angle <= maxAngle
+            end
+
+            local maxSector = 75
+            local leftValid = isWallInSector(trace_left, left_dir, ang, maxSector)
+            local rightValid = isWallInSector(trace_right, right_dir, ang, maxSector)
+
+            local leftDist = leftValid and trace_left.Fraction * maxDist or math.huge
+            local rightDist = rightValid and trace_right.Fraction * maxDist or math.huge
+
+            if leftDist < rightDist then--слева
+                aaAng.y = fakeAng.y + 90-math.abs(yDiff)
+                diffAngle.y = aaAng.y - fakeAng.y
+            elseif rightDist < leftDist then--справа
+                aaAng.y = fakeAng.y + math.abs(yDiff)-90
+                diffAngle.y = aaAng.y - fakeAng.y
+            else--huy
+                aaAng.y = fakeAng.y + math.abs(yDiff)-90
+                diffAngle.y = aaAng.y - fakeAng.y
+            end
+        end
+        if HvH.AntiAim.Yaw == "Left" then
+            aaAng.y = fakeAng.y + 90-math.abs(yDiff)
+            diffAngle.y = aaAng.y - fakeAng.y
+        end
+        if HvH.AntiAim.Yaw == "Right" then
+            aaAng.y = fakeAng.y + math.abs(yDiff)-90
+            diffAngle.y = aaAng.y - fakeAng.y
+        end
+        if HvH.AntiAim.Yaw == "Forward" then
+            aaAng.y = fakeAng.y
+            diffAngle.y = aaAng.y - fakeAng.y
+        end
+        --Pitch
+        if HvH.AntiAim.Pitch == "Down" then
+            aaAng.p = 87
+            diffAngle.p = math.AngleDifference(aaAng.p, fakeAng.p)
+        end
+        if HvH.AntiAim.Pitch == "Up" then
+            aaAng.p = -87
+            diffAngle.p = math.AngleDifference(aaAng.p, fakeAng.p)
+        end
+        if HvH.AntiAim.Pitch == "Forward" then
+            aaAng.p = 0
+            diffAngle.p = math.AngleDifference(aaAng.p, fakeAng.p)
+        end
+        if HvH.AntiAim.Pitch == "Viewangles" then
+            aaAng.p = fakeAng.p
+            diffAngle.p = math.AngleDifference(aaAng.p, fakeAng.p)
+        end
+        ----
+        aaAng.r = 0
+        diffAngle.r = 0
+        Aimbot.Angle = Aimbot.Angle + diffAngle
+        cmd:SetViewAngles(aaAng)
+    elseif not resetAngle then
+        resetAngle = true
+        local ang = cmd:GetViewAngles()
+        cmd:SetViewAngles(ang - Aimbot.Angle)
+        Aimbot.Angle = Angle(0,0,0)
     end
 end)
