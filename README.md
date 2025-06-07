@@ -1,5 +1,6 @@
 Menu preview
-![image](https://github.com/user-attachments/assets/ccb691f2-28f6-4ad4-8f74-02b3b953178b)
+![image](https://github.com/user-attachments/assets/9373a956-da3c-4b65-999f-cf8303f1732c)
+
 
 
 🛠️ Built-in functions:
