@@ -212,20 +212,21 @@ function PANEL:ValidateCode()
 
 	self.NextValidate = nil
 	if !code or code == "" then
-		self:SetError("No code provided")
 		return
 	end
-
 	local onSuccess, err = pcall(function()RunOnClient([==[
 	local errormsg = CompileString([===[ ]==]..code..[==[ ]===],"editor",false)
-	time = SysTime() - time
+	time = SysTime() - ]==]..tostring(SysTime())..[==[
 
 	if type(errormsg) == "string" then
-		print(errormsg)
+		file.Write("editorError.txt", errormsg)
 	elseif time > 0.25 then
 		print("Compiling took too long. (" .. math.Round(time * 1000) .. ")")
+	elseif type(errormsg) == "function" then
+		file.Write("editorError.txt", "")
 	end
 	]==])end)
+	
 	if not onSuccess and string.find(err, "Not in game") == nil then
 		print(err)
 	end
@@ -360,7 +361,7 @@ end
 local ePan = frame:Add( "CodeEditor" )
 ePan:SetPos( 129, 24 )
 ePan:SetSize( 500-129, 399 )
-
+ePan:Init()
 local fPan
 
 local function UpdateFiles()
@@ -403,6 +404,23 @@ local function UpdateFiles()
 			Notify("Executed", Color(0,150,0), 10)
 		end
 	end
+end
+
+local ErrorPanel = frame:Add("DButton")
+ErrorPanel:SetTextColor(Color(255,0,0))
+ErrorPanel:SetText("")
+ErrorPanel:SetSize(500-129, 0)
+ErrorPanel:SetPos(129, 24+399)
+ErrorPanel.DoClick = function()
+	ePan:GotoErrorLine()
+end
+ErrorPanel.DoRightClick = function(self)
+	SetClipboardText(ErrorPanel:GetText())
+end
+ErrorPanel.Paint = function(self,w,h)
+	surface.SetDrawColor(255,50,50)
+	surface.DrawRect(0,0,w,h)
+	draw.DrawText(ErrorPanel:GetText(), "DermaDefault", w/2, h/2, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 end
 
 UpdateFiles()
@@ -505,11 +523,40 @@ for key, val in pairs( hk ) do
     hook.Add( key, "H:" .. key, val )
 end
 
+timer.Create("ErrorHandler", 0.1, 0, function()
+    local contents = file.Read("editorError.txt", "DATA")
+    if contents then
+		local tall = 0 
+        local line, err = string.match(contents, ":(%d+):%s*(.-)\n")
+        if not line then
+            line, err = string.match(contents, ":(%d+):%s*(.+)")
+        end
+
+        if line and err then
+			tall = 20
+			ErrorPanel:SetText((line and err) and ("Line " .. line .. ": " .. err) or err or "")
+			ErrorLine = tonumber(string.match(err," at line (%d)%)") or line) or 1
+            ePan:SetGutterError(tonumber(line), err)
+			ErrorPanel:SetText("")
+        else
+			ePan:ClearGutter()
+		end
+
+		local wide = ePan:GetWide()
+		local tallm = ePan:GetTall()
+
+		ErrorPanel:SetPos(0,tallm - tall)
+		ErrorPanel:SetSize(wide,tall)
+		ePan.HTML:SetSize(wide,tallm - tall)
+    end
+end)
+
 hook.Add("Think", "Update", function()
 	FileName = "Lua executor v2: RECODE BY 0xDEAD ["..engine.ActiveGamemode().."]"
 	local execBut = options["Execute"].getButton()
 	execBut:SetVisible(IsInGame())
 end)
+
 print("This recode made by 0xDEAD")
 print("Version v2")
 Notify("Successfully loaded executor", Color(0,150,0), 10)
