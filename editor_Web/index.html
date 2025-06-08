@@ -298,9 +298,9 @@
 		editor.getSession().setMode("ace/mode/" + editormode);
 	}
 
-	function GotoLine(linenum) {
+	function GotoLine(linenum, column) {
 		//OnLog("GotoLine "+linenum);
-		editor.gotoLine(linenum);
+		editor.gotoLine(linenum, colum || 0, true);
 	}
 
 	function SetContent(code) {
