@@ -353,7 +353,7 @@ function GetErrs() {
 		if ("gmodinterface" in window)
 		{
 			var anns = editor.getSession().getAnnotations() || [];
-    		JSON.stringify(anns);
+    		gmodinterface.GetErr(JSON.stringify(anns));
 		}
 	}
 	catch (err)
