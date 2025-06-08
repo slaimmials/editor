@@ -349,7 +349,7 @@ function SetErrs(json)
 
 function GetErrs() {
     var anns = editor.getSession().getAnnotations() || [];
-    return JSON.stringify(anns);
+    JSON.stringify(anns);
 }
 
 function ClearErr()
