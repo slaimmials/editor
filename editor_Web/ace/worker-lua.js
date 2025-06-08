@@ -2337,6 +2337,7 @@ define("ace/mode/lua/luaparse",["require","exports","module"], function(require,
         case 'for':      next(); return parseForStatement();
         case 'repeat':   next(); return parseRepeatStatement();
         case 'break':    next(); return parseBreakStatement();
+        case 'continue': next(); return parseBreakStatement();
         case 'do':       next(); return parseDoStatement();
         case 'goto':     next(); return parseGotoStatement();
       }

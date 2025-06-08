@@ -63,7 +63,8 @@ define("ace/mode/glua_highlight_rules", ["require", "exports", "module", "ace/li
             }
         }
 
-        var keywords = ("break|do|else|elseif|end|for|function|if|in|local|repeat|" + "return|then|until|while|or|and|not|continue|goto");
+        var keywords = ("break|do|else|elseif|end|for|function|if|in|local|repeat|" + 
+            "return|then|until|while|or|and|not|continue|goto");
 
         var builtinConstants = ("true|false|nil|_G|_VERSION|VERSION|SERVER|CLIENT");
 
@@ -467,7 +468,7 @@ define("ace/mode/glua", ["require", "exports", "module", "ace/lib/oop", "ace/mod
         }
         ;
         this.createWorker = function(session) {
-            var worker = new WorkerClient(["ace"],"ace/mode/glua_worker","Worker");
+            var worker = new WorkerClient(["ace"],"ace/mode/lua_worker","Worker");
             worker.attachToDocument(session.getDocument());
 
             return worker;

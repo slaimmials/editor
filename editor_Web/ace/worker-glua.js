@@ -1406,11 +1406,12 @@ var Mirror = exports.Mirror = function(sender) {
 
 });
 
-define("ace/mode/glua_worker",["require","exports","module","ace/lib/oop","ace/worker/mirror"], function(require, exports, module) {
+define("ace/mode/glua_worker",["require","exports","module","ace/lib/oop","ace/worker/mirror","ace/mode/lua/luaparse"], function(require, exports, module) {
 "use strict";
 
 var oop = require("../lib/oop");
 var Mirror = require("../worker/mirror").Mirror;
+var luaparse = require("../mode/lua/luaparse");
 
 var Worker = exports.Worker = function(sender) {
     Mirror.call(this, sender);
@@ -1422,11 +1423,27 @@ oop.inherits(Worker, Mirror);
 (function() {
 
     this.onUpdate = function() {
+        var value = this.doc.getValue();
+        var errors = [];
+        try {
+            luaparse.parse(value);
+        } catch(e) {
+            if (e instanceof SyntaxError) {
+                errors.push({
+                    row: e.line - 1,
+                    column: e.column,
+                    text: e.message,
+                    type: "error"
+                });
+            }
+        }
+        this.sender.emit("annotate", errors);
     };
 
 }).call(Worker.prototype);
 
 });
+
 
 define("ace/lib/es5-shim",["require","exports","module"], function(require, exports, module) {
 
