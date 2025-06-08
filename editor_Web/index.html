@@ -341,9 +341,15 @@ function SetErr(errline, errstr)
 		type: "error"
 	}]);
 }
+
 function SetErrs(json)
 {
 	editor.getSession().setAnnotations( JSON.parse(json) );
+}
+
+function GetErrs() {
+    var anns = editor.getSession().getAnnotations() || [];
+    return JSON.stringify(anns);
 }
 
 function ClearErr()
