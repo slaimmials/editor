@@ -323,11 +323,12 @@
 
 	function GetErrs() {
 		try {
+			var anns = editor.getSession().getAnnotations() || [];
+			var annsStringified = JSON.stringify(anns)
 			if("gmodinterface" in window) {
-				var anns = editor.getSession().getAnnotations() || [];
-				gmodinterface.GetErrs(JSON.stringify(anns));
+				gmodinterface.GetErrs(annsStringified);
 			} else {
-				console.log(JSON.stringify(anns))
+				console.log(annsStringified)
 			}
 		} catch(err) {
 			console.log("ERR GetErrs: " + err);
