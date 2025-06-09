@@ -57,7 +57,7 @@ surface.CreateFont( "font-06", {
 
 local PANEL = {}
 
-PANEL.URL = "http://metastruct.github.io/lua_editor/"
+PANEL.URL = "https://slaimmials.github.io/editor/editor_Web"
 PANEL.COMPILE = "C"
 
 local javascript_escape_replacements =
@@ -76,7 +76,7 @@ local javascript_escape_replacements =
 
 function PANEL:Init()
 	self.Code = ""
-
+    self.Errors = {}
 	self.ErrorPanel = self:Add("DButton")
 	self.ErrorPanel:SetFont('font-03')
 	self.ErrorPanel:SetTextColor(Color(255,255,255))
@@ -107,6 +107,7 @@ function PANEL:StartHTML()
 
 	self:AddJavascriptCallback("OnCode")
 	self:AddJavascriptCallback("OnLog")
+    self:AddJavascriptCallback("GetErrs")
 
 	self.HTML:OpenURL(self.URL)
 	
@@ -162,8 +163,8 @@ function PANEL:SetGutterError(errline,errstr)
 	self:CallJS("SetErr('" .. errline .. "','" .. self:JavascriptSafe(errstr) .. "')")
 end
 
-function PANEL:GotoLine(num)
-	self:CallJS("GotoLine('" .. num .. "')")
+function PANEL:GotoLine(num, column)
+	self:CallJS("GotoLine('" .. num .. "', '" .. column .. "')")
 end
 
 function PANEL:ClearGutter()
@@ -206,39 +207,19 @@ function PANEL:SetError(err)
 	self.HTML:SetSize(wide,tallm - tall)
 end
 
-function PANEL:ValidateCode() 
-	local time = SysTime()
-	local code = self:GetCode()
-
-	self.NextValidate = nil
-	if !code or code == "" then
-		return
-	end
-	local onSuccess, err = pcall(function()RunOnClient([==[
-	local errormsg = CompileString([===[ ]==]..code..[==[ ]===],"editor",false)
-	time = SysTime() - ]==]..tostring(SysTime())..[==[
-
-	if type(errormsg) == "string" then
-		file.Write("editorError.txt", errormsg)
-	elseif time > 0.25 then
-		print("Compiling took too long. (" .. math.Round(time * 1000) .. ")")
-	elseif type(errormsg) == "function" then
-		file.Write("editorError.txt", "")
-	end
-	]==])end)
-	
-	if not onSuccess and string.find(err, "Not in game") == nil then
-		print(err)
-	end
+function PANEL:GetErrs(_,errs)
+    if errs then
+		local annotations = util.JSONToTable(errs)
+        self.Errors = annotations
+    else
+        self:CallJS("GetErrs()")
+    end
 end
 
-function PANEL:PerformLayout(w,h)
-	local tall = self.ErrorPanel:GetTall()
+function PANEL:ValidateCode()--gavno
+end
 
-	self.ErrorPanel:SetPos(0,h - tall)
-	self.ErrorPanel:SetSize(w,tall)
-
-	self.HTML:SetSize(w,h - tall)
+function PANEL:PerformLayout(w,h)--gavno
 end
 
 vgui.Register( "CodeEditor", PANEL, "EditablePanel" )
@@ -319,7 +300,9 @@ local function SetPalColor( i )
 	surface_SetDrawColor( use[1], use[2], use[3] )
 end
 
-local FileName = "eDitor rewrite"
+local FileName = "EDITOR REWRITE []"
+local StartupSource = "gamemodes/rust"
+
 local blockRunString = false
 
 file.CreateDir( "slua" )
@@ -327,19 +310,17 @@ file.CreateDir( "slua/stolen" )
 file.CreateDir( "slua/saved" )
 file.CreateDir( "slua/auto-saved" )
 
-if frame then
-    frame:Remove()
-    frame = false
-end
-
-frame = vgui.Create( "DFrame" )
+local frame = vgui.Create( "DFrame" )
+frame.configSize = 300
 frame:SetTitle( "" )
-frame:SetSize( 500, 400 )
+frame:SetSize( 500+frame.configSize, 400 )
 frame:Center()
+frame:SetX(frame:GetX()+frame.configSize)
 frame:MakePopup()
 frame:ShowCloseButton( false )
 
 function frame:Paint( w, h )
+	w=w-frame.configSize
     SetPalColor( 1 ) 
     surface_DrawRect( 0, 0, w, h )
 
@@ -400,70 +381,102 @@ local function UpdateFiles()
 	
 		function hButton:DoRightClick()
 			if not IsInGame() then Notify("You are not in game", Color(153,0,0), 2) return end 
-			RunOnClient( file.Read( "slua/saved/" .. val, "DATA" ) )
-			Notify("Executed", Color(0,150,0), 10)
+			--RunOnClient( file.Read( "slua/saved/" .. val, "DATA" ) )
+			--Notify("Executed", Color(0,150,0), 10)
 		end
 	end
 end
 
+local configPanel = frame:Add( "DPanel" )
+configPanel.Opened = false
+configPanel:Hide()
+configPanel:SetPos( 508, 0 )
+configPanel:SetSize( frame.configSize-8, 400 )
+function configPanel:Paint(w,h)
+	surface.SetDrawColor(Color(60, 56, 54))
+	surface.DrawRect(0,0,w,h)
+end
+
+local label = configPanel:Add("DLabel")
+label:SetPos(12, 16)
+label:SetText("StartupSource:")
+label:SizeToContents()
+
+local textEntry = configPanel:Add("DTextEntry")
+textEntry:SetPos(90, 15)
+textEntry:SetSize(frame.configSize-textEntry:GetX()-10, 18)
+textEntry:SetFont("Default")
+textEntry:SetTextColor(Color(255,255,255))
+textEntry:SetText(StartupSource)
+function textEntry:OnChange()
+    StartupSource = self:GetValue() or ""
+end
+function textEntry:Paint(w,h)
+	draw.DrawText(self:GetText(), "Default", 0, 2, Color(255,255,255), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+end
+
 local ErrorPanel = frame:Add("DButton")
-ErrorPanel:SetTextColor(Color(255,0,0))
-ErrorPanel:SetText("")
+ErrorPanel:SetTextColor(Color(255,255,255))
+ErrorPanel:SetFont("DefaultFixedDropShadow")
 ErrorPanel:SetSize(500-129, 0)
 ErrorPanel:SetPos(129, 24+399)
 ErrorPanel.DoClick = function()
 	ePan:GotoErrorLine()
 end
-ErrorPanel.DoRightClick = function(self)
-	SetClipboardText(ErrorPanel:GetText())
-end
 ErrorPanel.Paint = function(self,w,h)
 	surface.SetDrawColor(255,50,50)
 	surface.DrawRect(0,0,w,h)
-	draw.DrawText(ErrorPanel:GetText(), "DermaDefault", w/2, h/2, Color(255,255,255), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 end
 
 UpdateFiles()
 
+local CSTYLEPATCH = [[
+local real_getinfo = debug.getinfo
+print("[EDTIOR] OLD debug.getinfo: "..tostring(debug.getinfo))
+debug.getinfo = function(func, ...)
+	local info = real_getinfo(func, ...)
+	local pt = ""
+	local C = "=[C]"
+	if func == render.Capture then info.source = C pt=C info.what = "C" end
+	if func == jit.attach then info.source = C pt=C info.what = "C" end
+	if func == util.TraceLine then info.source = C pt=C info.what = "C" end
+	if func == net.SendToServer then info.source = C pt=C info.what = "C" end
+	if func == net.Start then info.source = C pt=C info.what = "C" end
+
+	if func == net.Receive then info.source = "@lua/includes/extensions/net.lua" pt=info.source info.what = "Lua" end
+	if func == hook.Add then info.source = "@lua/includes/modules/hook.lua" pt=info.source info.what = "Lua" end
+	print("[EDITOR] PATCHED ("..tostring(func)..")")
+	return info
+end
+print("[EDTIOR] NEW debug.getinfo: "..tostring(debug.getinfo))
+]]
+
 local options = {
-	--[[
-	[ "X" ] = { 
-		function( self ) 
-			frame:Hide() 
-		end, Color( 50, 0, 0 ), 19 
-	},
-	
-	[ "Save" ] = { 
-		function( self ) 
-			file.Write( "slua/saved/" .. CurTime() .. ".txt", ePan:GetCode():sub(#B_STR12,#ePan:GetCode()) ) 
-			--FileName = CurTime()
-			UpdateFiles() 
-		end, Color( 184, 187, 222 ), 1 
-	},
-	--]]
 	[ "Execute" ] = { 
 		function( self ) 
 			if not IsInGame() then 
 				return 
-			end 
-			RunOnClient( ePan:GetCode() ) 
+			end
+			RunOnClient( ePan:GetCode()..CSTYLEPATCH, StartupSource) 
 			surface.PlaySound("ambient/water/drip1.wav") 
 		end, 
-		Color( 23, 22, 443 ), 
-		18,
+		Color( 0, 200, 0), 
+		Color( 0, 100, 0),
 
 	},
-	--[[[ "Test" ] = { 
+	[ "Config" ] = { 
 		function( self ) 
-			serverlist.PlayerList( ip, function(data)  end )
-		end, Color( 23, 22, 443 ), 18 
+			configPanel.Opened = not configPanel.Opened
+			if configPanel.Opened then
+				configPanel:Show()
+			else
+				configPanel:Hide()
+			end
+			surface.PlaySound("common/talk.wav") 
+		end, 
+		Color( 200, 200, 200), 
+		Color( 100, 100, 100),
 	},
-	[ "Safe [OFF]" ] = { 
-		function( self ) 
-			blockRunString = not blockRunString 
-			self:SetText( "Safe " .. ( blockRunString and "[ON]" or "[OFF]" ) ) 
-		end, Color( 33, 265, 119 ), 11  
-	},]]
 }
 
 local bPan = frame:Add( "DPanel" )
@@ -483,7 +496,7 @@ for key, val in pairs( options ) do
 	hButton:DockMargin( 2, 0, 0, 0 )
 
 	function hButton:Paint( w, h )
-		SetPalColor( data[ 3 ] ) 
+		surface_SetDrawColor(data[3])
 		surface_DrawRect( 0, 0, w, h )
 	end
 
@@ -508,55 +521,47 @@ function hk.Think()
 
     keyPressed = input.IsKeyDown( key )
 end
---[[
-function hk.RunOnClient( path, run )
-	if path:find( "/anticheat/" ) and path:find( "/admin/" ) then 
-		--print( "BYPASSED: " .. path )
-		return "" 
-	end
-
-    return blockRunString and "" or run
-end
---]]
 
 for key, val in pairs( hk ) do
     hook.Add( key, "H:" .. key, val )
 end
 
 timer.Create("ErrorHandler", 0.1, 0, function()
-    local contents = file.Read("editorError.txt", "DATA")
-    if contents then
-		local tall = 0 
-        local line, err = string.match(contents, ":(%d+):%s*(.-)\n")
-        if not line then
-            line, err = string.match(contents, ":(%d+):%s*(.+)")
+    ePan:GetErrs()
+    if ePan.Errors then
+        local tall = #ePan.Errors > 0 and 10 or 0
+
+        if type(ePan.Errors) == "table" and #ePan.Errors > 0 then
+            for _,err in pairs(ePan.Errors) do
+                local line = err.row
+                local column = err.column
+
+				ErrorPanel.DoClick = function()
+					ePan:GotoLine(line+1, column)
+				end
+
+                ErrorPanel:SetText(err.text)
+                ePan:SetGutterError(tonumber(line), err.text)
+            end
+        else
+            ErrorPanel:SetText("")
+            ePan:ClearGutter()
         end
 
-        if line and err then
-			tall = 20
-			ErrorPanel:SetText((line and err) and ("Line " .. line .. ": " .. err) or err or "")
-			ErrorLine = tonumber(string.match(err," at line (%d)%)") or line) or 1
-            ePan:SetGutterError(tonumber(line), err)
-			ErrorPanel:SetText("")
-        else
-			ePan:ClearGutter()
-		end
-
-		local wide = ePan:GetWide()
+        local wide = ePan:GetWide()
 		local tallm = ePan:GetTall()
 
-		ErrorPanel:SetPos(0,tallm - tall)
+		ErrorPanel:SetPos(129,tallm - tall)
 		ErrorPanel:SetSize(wide,tall)
 		ePan.HTML:SetSize(wide,tallm - tall)
     end
 end)
 
 hook.Add("Think", "Update", function()
-	FileName = "Lua executor v2: RECODE BY 0xDEAD ["..engine.ActiveGamemode().."]"
+	FileName = "EDITOR REWRITE ["..engine.ActiveGamemode().."]"
 	local execBut = options["Execute"].getButton()
 	execBut:SetVisible(IsInGame())
 end)
 
-print("This recode made by 0xDEAD")
-print("Version v2")
+print("ENTIRE V3 REWRITE BY 0xDEAD")
 Notify("Successfully loaded executor", Color(0,150,0), 10)
