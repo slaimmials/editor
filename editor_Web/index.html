@@ -326,6 +326,8 @@
 			if("gmodinterface" in window) {
 				var anns = editor.getSession().getAnnotations() || [];
 				gmodinterface.GetErrs(JSON.stringify(anns));
+			} else {
+				console.log(JSON.stringify(anns))
 			}
 		} catch(err) {
 			console.log("ERR GetErrs: " + err);
