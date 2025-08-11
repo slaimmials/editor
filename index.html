@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8" />
+	<title>editor</title>
+	<style type="text/css">
+	html {
+		margin: 0;
+		padding: 0;
+		height: 100%;
+		overflow: hidden;
+		background-color: rgba(0, 0, 0, 0.01);
+	}
+	
+	body {
+		margin: 0;
+		padding: 0;
+		height: 100%;
+		overflow: hidden;
+	}
+	
+	#editor {
+		margin: 0;
+		padding: 0;
+		height: 100%;
+		overflow: hidden;
+	}
+	
+	.pace {
+		-webkit-pointer-events: none;
+		pointer-events: none;
+		-webkit-user-select: none;
+		-moz-user-select: none;
+		user-select: none;
+	}
+	
+	.pace-inactive {
+		display: none;
+	}
+	
+	.pace .pace-progress {
+		background: #99fe01;
+		position: fixed;
+		z-index: 2000;
+		top: 0;
+		right: 100%;
+		width: 100%;
+		height: 2px;
+	}
+	</style>
+	<script src='pace.min.js'></script>
+	<!-- requireJS -- >
+
+<script src="require.js"></script>
+
+<!-- -->
+	<!-- Firepad -- >
+
+<script src="//www.gstatic.com/firebasejs/3.2.1/firebase.js"></script>
+<link rel="stylesheet" href="firepad/firepad.css" />
+<!-- -->
+	<script>
+	if("gmodinterface" in window) {
+		var oldconsole = console;
+		window.console = {};
+		console.log = function() {
+			var args = Array.prototype.slice.call(arguments);
+			oldconsole.log(args.join(" "));
+		};
+		console.info = console.log;
+		console.warn = console.log;
+	}
+	</script>
+</head>
+
+<body>
+	<div id="editor"></div>
+	<!-- <div id="statusBar">asdasd</div> -->
+	<script>
+	var DEBUG = false;
+	if(window.location.href.indexOf("debug") >= 0) {
+		DEBUG = true;
+		console.log("=== debug mode ===");
+		(function() {
+			var js = document.createElement("script");
+			js.type = "text/javascript";
+			js.src = "live.js";
+			document.body.appendChild(js);
+		})();
+	}
+	</script>
+	<script src="asset://garrysmod/data/tmp_autocomplete.dat"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/ace.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/ext-elastic_tabstops_lite.js"></script>
+	<!--  <script type="text/javascript" charset="utf-8" src="ace/ext-emmet.js"></script> -->
+	<script type="text/javascript" charset="utf-8" src="ace/ext-language_tools.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/ext-keybinding_menu.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/ext-modelist.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/ext-searchbox.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/ext-settings_menu.js"></script>
+	<!--  <script type="text/javascript" charset="utf-8" src="ace/ext-spellcheck.js"></script> -->
+	<!--<script type="text/javascript" charset="utf-8" src="ace/ext-static_highlight.js"></script> -->
+	<!-- <script type="text/javascript" charset="utf-8" src="ace/ext-statusbar.js"></script> -->
+	<script type="text/javascript" charset="utf-8" src="ace/ext-textarea.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/ext-themelist.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/ext-whitespace.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/keybinding-emacs.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/keybinding-vim.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/worker-coffee.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/worker-css.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/worker-javascript.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/worker-json.js"></script>
+	<!--    <script type="text/javascript" charset="utf-8" src="ace/worker-php.js"></script> -->
+	<!--  <script type="text/javascript" charset="utf-8" src="ace/worker-xquery.js"></script> -->
+	<script type="text/javascript" charset="utf-8" src="ace/mode-text.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/snippets/text.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/mode-lua.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/snippets/lua.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/mode-glua.js"></script>
+	<script type="text/javascript" charset="utf-8" src="ace/snippets/glua.js"></script>
+	<!-- <script src="firepad/firepad.js"></script>-->
+	<script>
+	TogetherJSConfig_siteName = "Metastruct";
+	TogetherJSConfig_toolName = "Collab";
+	TogetherJSConfig_inviteFromRoom = false;
+	TogetherJSConfig_ignoreMessages = true; // useless log info
+	TogetherJSConfig_dontShowClicks = true;
+	TogetherJSConfig_enableShortcut = false;
+	TogetherJSConfig_suppressJoinConfirmation = true;
+	TogetherJSConfig_suppressInvite = true;
+	TogetherJSConfig_includeHashInUrl = true;
+	TogetherJSConfig_disableWebRTC = true;
+	TogetherJSConfig_storagePrefix = "sess";
+	//window.DoTogetherJSDelayed=function() { console.log("WTFWTFWTFWTFWTFWTF"); };
+	//TogetherJSConfig_callToStart = function (callback) {
+	//  window.DoTogetherJSDelayed = callback;
+	//};
+	TogetherJSConfig_getUserName = function() {
+		return 'Mingebag ' + Math.round(Math.random() * 1000);
+	};
+	</script>
+	<!-- 
+		<script src="//togetherjs.com/togetherjs-min.js"></script> 
+-->
+	<script type="text/javascript" charset="utf-8">
+	"use strict";
+	//function InitializeEditor() { // breaks global definitions
+	var editor = ace.edit("editor");
+	window.editor = editor;
+	if(DEBUG) {
+		console.log("EDITOR: " + editor + ". SESSION: " + typeof(editor.getSession()) + ".");
+	}
+	// Initialize Firebase
+	var config = {
+		apiKey: "AIzaSyAWE5dSAUkybwgrc8kPVxVL6RouOeQL3Qw",
+		authDomain: "metastruct-ace.firebaseapp.com",
+		databaseURL: "https://metastruct-ace.firebaseio.com",
+		storageBucket: "",
+	};
+	//firebase.initializeApp(config);
+	//firebase.auth().signInAnonymously().catch(function (error)
+	//{
+	//	console.log("bollocks "+error);
+	//});
+	ace.require("ace/ext/language_tools");
+	ace.require('ace/ext/settings_menu').init(editor);
+	ace.require('ace/ext/keybinding_menu').init(editor);
+	//var StatusBar = ace.require("ace/ext/statusbar").StatusBar;
+	//var statusBar = new StatusBar(editor, document.getElementById("statusBar"));
+	editor.setOptions({
+		enableBasicAutocompletion: true,
+		enableSnippets: true,
+		//enableLiveAutocompletion: true, 
+		scrollPastEnd: true
+	});
+	var s_id = 0;
+
+	function DisableShortcut(scut) {
+		s_id++;
+		editor.commands.addCommands([{
+			name: "dis" + s_id,
+			bindKey: {
+				win: scut,
+				mac: scut
+			},
+			exec: function(editor, line) {
+				return false;
+			},
+			readOnly: true
+		}]);
+	};
+	DisableShortcut("Ctrl-Alt+0");
+	editor.getSession().setUseWrapMode(false);
+	editor.getSession().setUseSoftTabs(false);
+	editor.setHighlightActiveLine(true);
+	editor.setShowPrintMargin(false);
+	editor.setTheme("ace/theme/monokai");
+	try {
+		editor.getSession().setMode("ace/mode/glua");
+	} catch(e) {
+		if(e instanceof TypeError) {
+			editor.getSession().setMode("ace/mode/lua");
+			if("exception" in console) console.exception(e);
+			else console.log(e);
+			console.log("Switching to bare lua mode due to errors");
+		} else {
+			throw e;
+		}
+	}
+	editor.$blockScrolling = Infinity;
+	editor.focus();
+	// callbacks
+	// lua->js
+	function SetTheme(themename) {
+		//OnLog("SetTheme "+themename);
+		editor.setTheme("ace/theme/" + themename);
+	}
+	var x64hackEnable = false;
+
+	function EnableScandicLayoutHack(enable) {
+		x64hackEnable = enable;
+	}
+	var textarea = editor.textInput.getElement();
+
+	function insertAtCursor(text) {
+		editor.session.insert(editor.getCursorPosition(), text)
+	}
+	textarea.addEventListener('beforeinput', function(e) {
+		if(!x64hackEnable) return;
+		if(e.data == "¨") {
+			insertAtCursor("~");
+			e.preventDefault();
+		};
+		if(e.data == "§") {
+			insertAtCursor("|");
+			e.preventDefault();
+		};
+	});
+	textarea.addEventListener('keyup', function(e) {
+		if(!x64hackEnable) return;
+		if(e.altKey && e.key == "p") {
+			insertAtCursor("\\")
+		}; // can't detect/type \ with scandic layout
+		if(!e.altKey && e.key == "[") {
+			insertAtCursor("[")
+		};
+		if(!e.altKey && e.key == "$") {
+			insertAtCursor("$")
+		};
+		if(!e.altKey && e.key == "@") {
+			insertAtCursor("@")
+		};
+		if(!e.altKey && e.key == "]") {
+			insertAtCursor("]")
+		};
+		if(!e.altKey && e.key == "{") {
+			insertAtCursor("{")
+		};
+		if(!e.altKey && e.key == "}") {
+			insertAtCursor("}")
+		};
+		if(!e.altKey && e.key == "¨") {
+			insertAtCursor("~");
+			e.preventDefault();
+		}; // we need this more than ¨
+	});
+
+	function SetOption(k, v) {
+		var opts = {};
+		opts[k] = v;
+		editor.setOptions(opts);
+	}
+
+	function GetOptions() {
+		try {
+			if("gmodinterface" in window) {
+				var str = JSON.stringify(editor.getOptions());
+				gmodinterface.GetOptions(str);
+			}
+		} catch(err) {
+			console.log("ERR OnCode: " + err);
+		}
+	}
+
+	function SetOptions(str) {
+		var opts = JSON.parse(str);
+		editor.setOptions(opts);
+	}
+
+	function SetFontSize(sz) {
+		//OnLog("SetFontSize "+sz);
+		document.getElementById('editor').style.fontSize = sz + 'px';
+	}
+
+	function SetMode(editormode) {
+		//OnLog("SetMode "+editormode);
+		editor.getSession().setMode("ace/mode/" + editormode);
+	}
+
+	function GotoLine(linenum, column) {
+		//OnLog("GotoLine "+linenum);
+		editor.gotoLine(linenum, column || 0, true);
+	}
+
+	function SetContent(code) {
+		//OnLog("SetContent "+code);
+		editor.getSession().getDocument().setValue(code);
+	}
+
+	function SetErr(errline, errstr) {
+		ClearErr(); // Очистить старые ошибки
+		editor.getSession().setAnnotations([{
+			row: errline,
+			text: errstr,
+			type: "error"
+		}]);
+	}
+
+	function SetErrs(json) {
+		ClearErr(); // Очистить старые ошибки
+		editor.getSession().setAnnotations(JSON.parse(json));
+	}
+
+	function GetErrs() {
+		try {
+			var anns = editor.getSession().getAnnotations() || [];
+			anns = anns.filter(function(ann) {
+				return ann.row >= 0; // Убедиться, что строки не отрицательные
+			});
+			var annsStringified = JSON.stringify(anns);
+			if ("gmodinterface" in window) {
+				gmodinterface.GetErrs(annsStringified);
+			} else {
+				console.log(annsStringified);
+			}
+		} catch (err) {
+			console.log("ERR GetErrs: " + err);
+		}
+	}
+
+	function ClearErr() {
+		//OnLog("ClearErr");
+		editor.getSession().clearAnnotations();
+	}
+
+	function ShowMenu() {
+		//OnLog("ShowMenu");
+		editor.showSettingsMenu();
+	}
+
+	function ShowBinds() {
+		//OnLog("ShowBinds");
+		editor.showKeyboardShortcuts();
+	}
+
+	function OnSelection(code) {
+		try {
+			if("gmodinterface" in window) {
+				gmodinterface.OnSelection(code);
+			}
+		} catch(err) {
+			console.log("ERR OnSelection: " + err);
+		}
+	}
+
+	function GetSelection() {
+		var s = editor.getSession();
+		var r = s.getSelection().getRange();
+		var txt = s.getTextRange(r);
+		OnSelection(txt);
+	}
+
+	function ReplaceSelection(txt) {
+		var s = editor.getSession();
+		var r = s.getSelection().getRange();
+		s.replace(r, txt || "");
+	}
+
+	function DoTogetherJS() {
+		var head = document.getElementsByTagName('head')[0];
+		var script = document.createElement('script');
+		script.type = 'text/javascript';
+		script.src = 'togetherjs/togetherjs-min.js';
+		head.appendChild(script);
+	}
+	// js->lua
+	function OnReady() {
+		try {
+			editor.focus();
+			editor.on("change", function() {
+				var text = editor.getSession().getValue();
+				OnCode(text);
+			});
+			if("gmodinterface" in window) {
+				gmodinterface.OnReady();
+			} else {
+				var gen = function(name) {
+					return function() {
+						console.log(name + ": " + JSON.stringify(arguments));
+					}
+				};
+				if(DEBUG) {
+					window.gmodinterface = {
+						OnSelection: gen("OnSelection"),
+						OnReady: gen("OnReady"),
+						OnLog: gen("OnLog"),
+						OnCode: function(code) {
+							gen("code")(code.length);
+						},
+						GetOptions: gen("GetOptions")
+					};
+					gmodinterface.OnReady();
+				};
+				console.log("GMod Interface Not Found!?");
+				DoTogetherJS();
+			}
+		} catch(err) {
+			console.log("ERR OnReady: " + err);
+		}
+	}
+
+	function OnCode(code) {
+		try {
+			if("gmodinterface" in window) {
+				gmodinterface.OnCode(code);
+			}
+		} catch(err) {
+			console.log("ERR OnCode: " + err);
+		}
+	}
+
+	function OnLog(logstr) {
+		try {
+			gmodinterface.OnLog(logstr);
+		} catch(err) {
+			console.log("FALLBACK LOG: " + err);
+		}
+	}
+	document.addEventListener('DOMContentLoaded', OnReady);
+	//firebase.auth().onAuthStateChanged(function (user)
+	//{
+	//	console.log("onAuthStateChanged " + user);
+	//	if (user)
+	//	{
+	//		// User is signed in.
+	//		console.log("bop");
+	//		// ...
+	//	}
+	//	else
+	//	{
+	//		// User is signed out.
+	//		// ...
+	//	}
+	//	// ...
+	//});
+	//};
+	//InitializeEditor();
+	// Подключи ace, ace/ext-language_tools.js и mode glua
+	editor.session.setMode("ace/mode/lua");
+	editor.session.setUseWorker(true);
+	editor.setOptions({
+		enableBasicAutocompletion: true,
+		enableSnippets: true,
+		enableLiveAutocompletion: true
+	});
+	</script>
+</body>
+
+</html>
